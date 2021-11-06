@@ -93,8 +93,8 @@ function init(vsSource, fsSource, gl, canvas) {
 
     const level = 0;
     const internalFormat = gl.RGBA;
-    const width = 10000;
-    const height = 10000;
+    const width = 4096;
+    const height = 4096;
     const border = 0;
     const srcFormat = gl.RGBA;
     const srcType = gl.UNSIGNED_BYTE;

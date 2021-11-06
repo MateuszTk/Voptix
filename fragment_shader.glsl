@@ -19,7 +19,7 @@ uniform sampler2D u_texture;
 uniform vec3[6] scene_data;
 
 ivec4 getVoxel(int i) {
-	ivec2 pos = ivec2(i % 10000, floor(float(i) / 10000.0f));
+	ivec2 pos = ivec2(i % 4096, floor(float(i) / 4096.0f));
 	vec4 fvoxel = texelFetch(u_texture, pos, 0);
 	ivec4 ivoxel = ivec4(int(fvoxel.x * 255.0f), int(fvoxel.y * 255.0f), int(fvoxel.z * 255.0f), int(fvoxel.w * 255.0f));
 	return ivoxel;
