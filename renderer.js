@@ -18,40 +18,62 @@ function main() {
 
 }
 
-var mouseX = 0, mouseY = 0;
-var xpos = 0.0, ypos = 0.0, zpos = -100.0;
+function radians(angle) {
+    return angle * (Math.PI / 180);
+}
 
-const sensitivity = 1.0;
+var mouseX = 0, mouseY = 0;
+var pos = glMatrix.vec3.create();
+pos[0] = -100.0;
+var rotation = glMatrix.vec3.create();
+var cursor = glMatrix.vec3.create();
+var angle = glMatrix.vec3.create();
+
+// vector representing where the camera is currently pointing
+var direction = glMatrix.vec3.create();
+
+const sensivity = 0.8;
 
 window.onload = main;
 document.onmousemove = handleMouseMove;
 window.addEventListener("keydown", function (event) {
+
+    glMatrix.vec3.normalize(direction, direction);
+
+    var speed = 1;
+    var vec = glMatrix.vec3.create();
+    var vec_up = glMatrix.vec3.create();
+    vec_up[1] = 1;
     switch (event.code) {
         case "KeyW":
         case "ArrowUp":
-            zpos += sensitivity;
+            glMatrix.vec3.scaleAndAdd(pos, pos, direction, speed);
             break;
 
         case "KeyS":
         case "ArrowDown":
-            zpos -= sensitivity;
+            glMatrix.vec3.scaleAndAdd(pos, pos, direction, -speed);
             break;
 
         case "KeyA":
         case "ArrowLeft":
-            xpos -= sensitivity;
+            glMatrix.vec3.cross(vec, direction, vec_up);
+            glMatrix.vec3.normalize(vec, vec);
+            glMatrix.vec3.scaleAndAdd(pos, pos, vec, speed);
             break;
 
         case "KeyD":
         case "ArrowRight":
-            xpos += sensitivity;
+            glMatrix.vec3.cross(vec, direction, vec_up);
+            glMatrix.vec3.normalize(vec, vec);
+            glMatrix.vec3.scaleAndAdd(pos, pos, vec, -speed);
             break;
 
         case "KeyQ":
-            ypos += sensitivity;
+            pos[1] -= speed;
             break;
         case "KeyE":
-            ypos -= sensitivity;
+            pos[1] += speed;
             break;
         default:
             break;
@@ -103,11 +125,6 @@ function init(vsSource, fsSource, gl, canvas) {
     for (let i = 0; i < width * height; i++) {
         setElement(i, 255, i % 256, 255, ((i % 1000) < 800) * 255, pixels);
     }
-    //pixels[2 + width] = 255;
-    //pixels[2 + 4 + width] = 255;
-    //pixels[2 + 8 + width] = 255;
-    //pixels[2 + 16 + width] = 255;
-    //pixels[2 + 32 + width] = 255;
 
     gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
         width, height, border, srcFormat, srcType,
@@ -124,11 +141,10 @@ function init(vsSource, fsSource, gl, canvas) {
     // Enable the attribute
     gl.enableVertexAttribArray(coord);
 
+    //start render loop
     window.requestAnimationFrame(function (timestamp) {
-        drawScene(gl, canvas, shaderProgram);
+        drawScene(gl, canvas, shaderProgram, 0.0);
     });
-
-    //drawScene(gl, canvas, shaderProgram);
 }
 
 function setElement(i, r, g, b, a, pixels) {
@@ -138,11 +154,39 @@ function setElement(i, r, g, b, a, pixels) {
     pixels[i * 4 + 3] = a;
 }
 
-function drawScene(gl, canvas, shaderProgram) {
+function updateCamera() {
+    var x = mouseX, y = mouseY;
+    var delta_x = +1.0 * (cursor[0] - x) * sensivity;
+    var delta_y = -1.0 * (cursor[1] - y) * sensivity;
+    cursor[0] = x;
+    cursor[1] = y;
 
+    x = angle[0] + delta_x;
+    y = angle[1] + delta_y;
+
+    // limit viewing angles
+    if (y > +89.0) y = +89.0;
+    if (y < -89.0) y = -89.0;
+
+    angle[0] = x;
+    angle[1] = y;
+
+    // calculate rotation
+    x = radians(x);
+    y = radians(y);
+    rotation[0] = x + radians(-90.0);
+    rotation[1] = y;
+
+    direction[0] = Math.cos(x) * Math.cos(y);
+    direction[1] = -Math.sin(y);
+    direction[2] = Math.sin(x) * Math.cos(y);
+}
+
+function drawScene(gl, canvas, shaderProgram, time) {
+    updateCamera();
     const scene = [
-        xpos, ypos, zpos,
-        mouseX / 100.0, mouseY / 100.0, 0.0,
+        pos[0], pos[1], pos[2],
+        rotation[0], rotation[1], 0.0,
         0.0, 0.0, 0.0,
         0.0, 0.0, 0.0,
         1.0, 200.0, 100.0,
@@ -161,7 +205,8 @@ function drawScene(gl, canvas, shaderProgram) {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     window.requestAnimationFrame(function (timestamp) {
-        drawScene(gl, canvas, shaderProgram);
+        document.getElementById('fps_counter').innerHTML = ('FPS:' + (1000.0 / (timestamp - time)));
+        drawScene(gl, canvas, shaderProgram, timestamp);
     });
 }
 
