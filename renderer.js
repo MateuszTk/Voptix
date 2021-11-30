@@ -106,6 +106,14 @@ function handleMouseMove(event) {
     mouseY = event.pageY;
 }
 
+function clamp(num, min, max) {
+    return num <= min
+        ? min
+        : num >= max
+            ? max
+            : num
+}
+
 function init(vsSource, fsSource, gl, canvas) {
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
     buffers = initBuffers(gl);
@@ -122,8 +130,73 @@ function init(vsSource, fsSource, gl, canvas) {
     const srcType = gl.UNSIGNED_BYTE;
     const pixels = new Uint8Array(width * height * 4);
 
-    for (let i = 0; i < width * height; i++) {
-        setElement(i, 255, i % 256, 255, ((i % 1000) < 800) * 255, pixels);
+    for (let i = 0; i < 64 * 64 * 64; i++) {
+        //setElement(i, 255, i % 256, 255, ((i % 1000) < 800) * 255, pixels);
+        setElement(i, 255, 255, 255, 0, pixels);
+    }
+
+    noise.seed(Math.random());
+    //let scale = 0.05;
+    /*for (let x = 0; x < 64; x++) {
+        for (let y = 0; y < 64; y++) {
+            for (let z = 0; z < 64; z++) {
+                let v = noise.simplex3(x * scale, y * scale, z * scale) * 255;
+                if (v > 128)
+                    octree_set(x, y, z, v, v, v, 255 , pixels);
+            }
+        }
+    }*/
+
+    const frequency = 2.0;
+    const fx = 64.0 / frequency;
+    const fs = 128.0 / frequency;
+    let x = 0, y = 0, z = 0;
+    x *= 64;
+    y *= 64;
+    z *= 64;
+
+    for (let _x = 0; _x < 64; _x++) {
+        for (let _z = 0; _z < 64; _z++) {
+
+            if (y < 128) {
+                let surface = noise.simplex2((x + _x) / fs, (z + _z) / fs) * 16 + 48;
+
+                for (let _y = 0; _y < 64; _y++) {
+                    if (_y < surface) {
+                        let value = noise.simplex3((x + _x) / fx, (y + _y) / fx, (z + _z) / fx) * 255;
+                        let clp = clamp(value + 0, 0, 255);
+
+                        let r = value, g = value, b = value;
+
+                        // grass layer
+                        if (_y > surface - 4) {
+                            r = 0; b = 0;
+                            g = clamp(value, 150, 200);
+                        }
+
+                        // dirt layer
+                        else if (_y > surface - 8) {
+                            g = 60; b = 0;
+                            r = clamp(value, 90, 180);
+                        }
+
+                        if (clp > 0)
+                            octree_set(_x, _y, _z, r, g, b, 255, pixels);
+
+                    }
+                }
+            } else { // clouds
+                for (let _y = 32; _y < 64; _y++) {
+                    let value = (noise.simplex3((x + _x) / 64, (y + _y) / 64, (z + _z) / 64, 6) * 255);
+                    let clp = clamp(value - 200, 0, 1) * 255;
+
+                    let r = value, g = value, b = value;
+
+                    if (clp > 0)
+                        octree_set(_x, _y, _z, r, g, b, 255, pixels);
+                }
+            }
+        }
     }
 
     gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
@@ -152,6 +225,41 @@ function setElement(i, r, g, b, a, pixels) {
     pixels[i * 4 + 1] = g;
     pixels[i * 4 + 2] = b;
     pixels[i * 4 + 3] = a;
+}
+
+function octree_set( x, y, z, r, g, b, a, pixels) {
+    // the offset into the tree
+    var offset = 0;
+
+    // copy iterator mask
+    var depth = 6;
+    var mask = 1 << (depth - 1);
+
+    // iterate until the mask is shifted to target (leaf) layer
+    while (mask) {
+
+        // calculate the octant by decomposing the xyz to its binary form
+        var octant = (
+            !!(x & mask) * 1 +
+            !!(y & mask) * 2 +
+            !!(z & mask) * 4
+        );
+
+        pixels[offset * 4 + 3] |= 1 << octant;
+
+        // shift the offset so that it aligns to the next layer
+        offset <<= 3;
+
+        // add octant id to the shifted offset, keep the octant id in range 1-8, not 0-7
+        offset += octant + 1;
+
+        // shift the mask
+        mask >>= 1;
+
+    }
+
+    setElement( offset, r, g, b, a, pixels);
+
 }
 
 function updateCamera() {

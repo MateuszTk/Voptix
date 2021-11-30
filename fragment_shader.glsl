@@ -6,7 +6,7 @@ precision mediump float;
 #define OCTREE_SIZE 299593
 
 // size of single octree leaf
-#define VOXEL_SIZE 4
+#define VOXEL_SIZE 1
 
 // channel offsets
 #define RED 0
