@@ -29,6 +29,16 @@ var rotation = glMatrix.vec3.create();
 var cursor = glMatrix.vec3.create();
 var angle = glMatrix.vec3.create();
 
+var cursor3D = glMatrix.vec3.create();
+var paint = false;
+
+const level = 0;
+const width = 560;
+const height = 560;
+const border = 0;
+const pixels = new Uint8Array(width * height * 4);
+
+
 // vector representing where the camera is currently pointing
 var direction = glMatrix.vec3.create();
 
@@ -75,6 +85,11 @@ window.addEventListener("keydown", function (event) {
         case "KeyE":
             pos[1] += speed;
             break;
+
+        case "Space":
+            paint = true;
+            break;
+
         default:
             break;
     }
@@ -107,28 +122,18 @@ function handleMouseMove(event) {
 }
 
 function clamp(num, min, max) {
-    return num <= min
-        ? min
-        : num >= max
-            ? max
-            : num
+    return ((num <= min) ? min : ((num >= max) ? max : num));
 }
 
 function init(vsSource, fsSource, gl, canvas) {
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
     buffers = initBuffers(gl);
 
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-
-    const level = 0;
     const internalFormat = gl.RGBA;
-    const width = 4096;
-    const height = 4096;
-    const border = 0;
     const srcFormat = gl.RGBA;
     const srcType = gl.UNSIGNED_BYTE;
-    const pixels = new Uint8Array(width * height * 4);
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
 
     for (let i = 0; i < 64 * 64 * 64; i++) {
         //setElement(i, 255, i % 256, 255, ((i % 1000) < 800) * 255, pixels);
@@ -166,7 +171,7 @@ function init(vsSource, fsSource, gl, canvas) {
                         let value = noise.simplex3((x + _x) / fx, (y + _y) / fx, (z + _z) / fx) * 255;
                         let clp = clamp(value + 0, 0, 255);
 
-                        let r = value, g = value, b = value;
+                        let r = clamp(value, 20, 40) * 5, g = clamp(value, 20, 40) * 5, b = clamp(value, 20, 40) * 5;
 
                         // grass layer
                         if (_y > surface - 4) {
@@ -182,6 +187,12 @@ function init(vsSource, fsSource, gl, canvas) {
 
                         if (clp > 0)
                             octree_set(_x, _y, _z, r, g, b, 255, pixels);
+                        else if (_y < 1) {
+                            r = 0;
+                            b = 240;
+                            g = clamp((value + 255) / 2, 0, 240);
+                            octree_set(_x, _y, _z, r, g, b, 255, pixels);
+                        }
 
                     }
                 }
@@ -216,7 +227,7 @@ function init(vsSource, fsSource, gl, canvas) {
 
     //start render loop
     window.requestAnimationFrame(function (timestamp) {
-        drawScene(gl, canvas, shaderProgram, 0.0);
+        drawScene(gl, canvas, shaderProgram, 0.0, texture);
     });
 }
 
@@ -290,7 +301,7 @@ function updateCamera() {
     direction[2] = Math.sin(x) * Math.cos(y);
 }
 
-function drawScene(gl, canvas, shaderProgram, time) {
+function drawScene(gl, canvas, shaderProgram, time, texture) {
     updateCamera();
     const scene = [
         pos[0], pos[1], pos[2],
@@ -311,6 +322,24 @@ function drawScene(gl, canvas, shaderProgram, time) {
     gl.viewport(0, 0, canvas.width, canvas.height);
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    if (paint) {
+        const pixel = new Uint8Array(4);
+        gl.readPixels(canvas.width / 2, canvas.height / 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        cursor3D[0] = Math.round((pos[0] + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
+        cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
+        cursor3D[2] = Math.round((pos[2] + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
+        octree_set(cursor3D[0], cursor3D[1], cursor3D[2], 255, 255, 255, 255, pixels);
+
+        const internalFormat = gl.RGBA;
+        const srcFormat = gl.RGBA;
+        const srcType = gl.UNSIGNED_BYTE;
+        gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+            width, height, border, srcFormat, srcType,
+            pixels);
+        paint = false;
+        console.log(pixel[3]);
+    }
 
     window.requestAnimationFrame(function (timestamp) {
         document.getElementById('fps_counter').innerHTML = ('FPS:' + (1000.0 / (timestamp - time)));

@@ -19,7 +19,7 @@ uniform sampler2D u_texture;
 uniform vec3[6] scene_data;
 
 ivec4 getVoxel(int i) {
-	ivec2 pos = ivec2(i % 4096, floor(float(i) / 4096.0f));
+	ivec2 pos = ivec2(i % 560, floor(float(i) / 560.0f));
 	vec4 fvoxel = texelFetch(u_texture, pos, 0);
 	ivec4 ivoxel = ivec4(int(fvoxel.x * 255.0f), int(fvoxel.y * 255.0f), int(fvoxel.z * 255.0f), int(fvoxel.w * 255.0f));
 	return ivoxel;
@@ -330,7 +330,7 @@ void main() {
 
 	int octree_depth = 6;
 
-	for (int bounces = 0; bounces < 2; bounces++) {
+	for (int bounces = 0; bounces < 1; bounces++) {
 		vec4 ray_pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
 		vec3 hit = vec3(0, 0, 0);
 		vec3 box_pos = vec3(0, 0, 0);
@@ -428,5 +428,5 @@ void main() {
 
 
 
-	outColor = vec4(pixel_color.x, pixel_color.y, pixel_color.z, 255.0f) / 255.0f;
+	outColor = vec4(pixel_color.x, pixel_color.y, pixel_color.z, clamp(pixel_color.w * 2.0f, 0.0f, 255.0f)) / 255.0f;
 }

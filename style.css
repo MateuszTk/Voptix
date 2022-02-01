@@ -1,0 +1,28 @@
+body {
+    background-color: black;
+}
+
+#fps_counter {
+    color: white;
+}
+
+.crosshair {
+    position: absolute;
+    z-index: 1;
+    left: 318px;
+    top: 240px;
+    width: 5px;
+    height: 1px;
+    background-color: red;
+}
+
+.crosshair:after {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    left: 2px;
+    top: -2px;
+    width: 1px;
+    height: 5px;
+    background-color: red;
+}
