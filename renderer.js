@@ -34,7 +34,8 @@ var paint = false;
 
 const level = 0;
 const width = 560;
-const height = 560;
+const pixelsPerVoxel = 2;
+const height = 560 * pixelsPerVoxel;
 const border = 0;
 const pixels = new Uint8Array(width * height * 4);
 
@@ -137,20 +138,10 @@ function init(vsSource, fsSource, gl, canvas) {
 
     for (let i = 0; i < 64 * 64 * 64; i++) {
         //setElement(i, 255, i % 256, 255, ((i % 1000) < 800) * 255, pixels);
-        setElement(i, 255, 255, 255, 0, pixels);
+        setElement(i, 255, 255, 255, 0, 0, pixels);
     }
 
     noise.seed(Math.random());
-    //let scale = 0.05;
-    /*for (let x = 0; x < 64; x++) {
-        for (let y = 0; y < 64; y++) {
-            for (let z = 0; z < 64; z++) {
-                let v = noise.simplex3(x * scale, y * scale, z * scale) * 255;
-                if (v > 128)
-                    octree_set(x, y, z, v, v, v, 255 , pixels);
-            }
-        }
-    }*/
 
     const frequency = 2.0;
     const fx = 64.0 / frequency;
@@ -186,12 +177,12 @@ function init(vsSource, fsSource, gl, canvas) {
                         }
 
                         if (clp > 0)
-                            octree_set(_x, _y, _z, r, g, b, 255, pixels);
+                            octree_set(_x, _y, _z, r, g, b, 255, 0, pixels);
                         else if (_y < 1) {
                             r = 0;
                             b = 240;
                             g = clamp((value + 255) / 2, 0, 240);
-                            octree_set(_x, _y, _z, r, g, b, 255, pixels);
+                            octree_set(_x, _y, _z, r, g, b, 255, 8, pixels);
                         }
 
                     }
@@ -204,7 +195,7 @@ function init(vsSource, fsSource, gl, canvas) {
                     let r = value, g = value, b = value;
 
                     if (clp > 0)
-                        octree_set(_x, _y, _z, r, g, b, 255, pixels);
+                        octree_set(_x, _y, _z, r, g, b, 255, 0, pixels);
                 }
             }
         }
@@ -231,14 +222,15 @@ function init(vsSource, fsSource, gl, canvas) {
     });
 }
 
-function setElement(i, r, g, b, a, pixels) {
-    pixels[i * 4] = r;
-    pixels[i * 4 + 1] = g;
-    pixels[i * 4 + 2] = b;
-    pixels[i * 4 + 3] = a;
+function setElement(i, r, g, b, a, s, pixels) {
+    pixels[i * 8] = r;
+    pixels[i * 8 + 1] = g;
+    pixels[i * 8 + 2] = b;
+    pixels[i * 8 + 3] = a;
+    pixels[i * 8 + 4] = s;
 }
 
-function octree_set( x, y, z, r, g, b, a, pixels) {
+function octree_set( x, y, z, r, g, b, a, s, pixels) {
     // the offset into the tree
     var offset = 0;
 
@@ -256,7 +248,7 @@ function octree_set( x, y, z, r, g, b, a, pixels) {
             !!(z & mask) * 4
         );
 
-        pixels[offset * 4 + 3] |= 1 << octant;
+        pixels[offset * 8 + 3] |= 1 << octant;
 
         // shift the offset so that it aligns to the next layer
         offset <<= 3;
@@ -269,7 +261,7 @@ function octree_set( x, y, z, r, g, b, a, pixels) {
 
     }
 
-    setElement( offset, r, g, b, a, pixels);
+    setElement( offset, r, g, b, a, s, pixels);
 
 }
 
@@ -308,8 +300,8 @@ function drawScene(gl, canvas, shaderProgram, time, texture) {
         rotation[0], rotation[1], 0.0,
         0.0, 0.0, 0.0,
         0.0, 0.0, 0.0,
-        1.0, 200.0, 100.0,
-        1.0, 0.01, 100000.0
+        3.0, 219.0, 252.0, //background
+        1.2, 0.01, 100000.0 //projection (fov near far)
     ];
 
     var location = gl.getUniformLocation(shaderProgram, 'scene_data');
@@ -329,7 +321,7 @@ function drawScene(gl, canvas, shaderProgram, time, texture) {
         cursor3D[0] = Math.round((pos[0] + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
         cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
         cursor3D[2] = Math.round((pos[2] + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
-        octree_set(cursor3D[0], cursor3D[1], cursor3D[2], 255, 255, 255, 255, pixels);
+        octree_set(cursor3D[0], cursor3D[1], cursor3D[2], 255, 255, 255, 255, 10, pixels);
 
         const internalFormat = gl.RGBA;
         const srcFormat = gl.RGBA;

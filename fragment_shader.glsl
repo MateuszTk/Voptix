@@ -6,13 +6,14 @@ precision mediump float;
 #define OCTREE_SIZE 299593
 
 // size of single octree leaf
-#define VOXEL_SIZE 1
+#define VOXEL_SIZE 2
 
 // channel offsets
 #define RED 0
 #define GREEN 1
 #define BLUE 2
 #define ALPHA 3
+//#define CLARITY 0
 
 out vec4 outColor;
 uniform sampler2D u_texture;
@@ -191,7 +192,7 @@ int octree_test_octant(float csize, Ray ray, vec3 xyz, int id, inout float dist,
 }
 
 // draw single pixel queried from octree with a 3D ray
-void octree_get_pixel(vec3 xyzc, Ray ray, int octree, inout float max_dist, inout vec4 moutput, int octree_depth, float csize, inout vec3 box_pos) {
+void octree_get_pixel(vec3 xyzc, Ray ray, int octree, inout float max_dist, inout vec4 voutput, inout vec4 matoutput, int octree_depth, float csize, inout vec3 box_pos) {
 
 	float dist;
 
@@ -228,7 +229,7 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int octree, inout float max_dist, inou
 		alt_data[depth].xyzo = xyzo;
 
 		// mask representing transparency of children
-		int alpha_mask = alt_data[depth].mask & getVoxel(octree + (layerindex - pow8 + globalid) * VOXEL_SIZE).w;
+		int alpha_mask = alt_data[depth].mask & getVoxel((octree + (layerindex - pow8 + globalid)) * VOXEL_SIZE).w;
 
 		// clearing the closest distance to the voxel
 		dist = max_dist;
@@ -286,12 +287,16 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int octree, inout float max_dist, inou
 	if (dist < max_dist) {
 		max_dist = dist;
 
-		int index = ((1 - pow8) / -7 + globalid) * VOXEL_SIZE;
-		vec4 vox = vec4(getVoxel(index + octree));
-		moutput.x = vox.x;
-		moutput.y = vox.y;
-		moutput.z = vox.z;
-		moutput.w = dist;
+		int index = ((1 - pow8) / -7 + globalid);
+		vec4 vox = vec4(getVoxel((index + octree) * VOXEL_SIZE));
+		vec4 vox_mat = vec4(getVoxel((index + octree) * VOXEL_SIZE + 1));
+		voutput.x = vox.x;
+		voutput.y = vox.y;
+		voutput.z = vox.z;
+		voutput.w = dist;
+
+		//clarity
+		matoutput.x = vox_mat.x;
 
 		box_pos = xyzo + xyzc;
 		box_pos.x += 1.0f;
@@ -330,10 +335,14 @@ void main() {
 
 	int octree_depth = 6;
 
-	for (int bounces = 0; bounces < 1; bounces++) {
+	vec4 prevmat = vec4(0, 0, 0, 0);
+	vec4 tmpmat = vec4(0, 0, 0, 0);
+
+	for (int bounces = 0; bounces < 2; bounces++) {
 		vec4 ray_pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
 		vec3 hit = vec3(0, 0, 0);
 		vec3 box_pos = vec3(0, 0, 0);
+		vec4 vmat = vec4(0, 0, 0, 0);
 
 		for (int spp = 0; spp < 2; spp++) {
 
@@ -362,12 +371,15 @@ void main() {
 					if (tmp_dist > -222.0f && tmp_dist < max_dist) {
 
 						// get pointer to octree of given chunk
-						int octree = (chunk * OCTREE_SIZE * VOXEL_SIZE);
+						int octree = (chunk * OCTREE_SIZE);
 
 						// render the chunk
 						vec3 box_pos_t;
-						octree_get_pixel(chunk_pos, ray, octree, max_dist, color, octree_depth, size, box_pos_t);
-						if (spp == 0) box_pos = box_pos_t;
+						octree_get_pixel(chunk_pos, ray, octree, max_dist, color, tmpmat, octree_depth, size, box_pos_t);
+						if (spp == 0) {
+							box_pos = box_pos_t;
+							vmat = tmpmat;
+						}
 					}
 				}
 			}
@@ -415,12 +427,14 @@ void main() {
 			pixel_color = ray_pixel_color;
 		}
 		else {
-			const float intensity = 0.5f;
+			float intensity = prevmat.x / 10.0f;
 			pixel_color.x = clamp((pixel_color.x + ray_pixel_color.x * intensity) / (1.0f + intensity), 0.0f, 255.0f);
 			pixel_color.y = clamp((pixel_color.y + ray_pixel_color.y * intensity) / (1.0f + intensity), 0.0f, 255.0f);
 			pixel_color.z = clamp((pixel_color.z + ray_pixel_color.z * intensity) / (1.0f + intensity), 0.0f, 255.0f);
 		}
 
+		if (vmat.x < 0.1f) break;
+		else prevmat = vmat;
 		if (ray_pixel_color.w >= far) break;
 		Bounce(primary_ray, hit, box_pos, 1.0f);
 		ray = primary_ray;
