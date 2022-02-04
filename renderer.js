@@ -31,6 +31,7 @@ var angle = glMatrix.vec3.create();
 
 var cursor3D = glMatrix.vec3.create();
 var paint = false;
+var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0};
 
 const level = 0;
 const width = 560;
@@ -321,7 +322,21 @@ function drawScene(gl, canvas, shaderProgram, time, texture) {
         cursor3D[0] = Math.round((pos[0] + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
         cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
         cursor3D[2] = Math.round((pos[2] + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
-        octree_set(cursor3D[0], cursor3D[1], cursor3D[2], 255, 255, 255, 255, 10, pixels);
+
+        let r = brush.diameter / 2.0;
+        if (brush.diameter > 4) {
+            for (let x = -r; x < r; x++) {
+                for (let y = -r; y < r; y++) {
+                    for (let z = -r; z < r; z++) {
+                        if (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))
+                            octree_set(cursor3D[0] + x, cursor3D[1] + y, cursor3D[2] + z, brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, pixels);
+                    }
+                }
+            }
+        }
+        else {
+            octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, pixels);
+        }
 
         const internalFormat = gl.RGBA;
         const srcFormat = gl.RGBA;
