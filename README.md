@@ -1,5 +1,5 @@
 # Voptix
 Online real-time voxel renderer   
 
-View latest deployment:
+View the latest deployment:   
 https://mateusztk.github.io/Voptix/   

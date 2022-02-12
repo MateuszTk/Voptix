@@ -1,6 +1,14 @@
 
 function main() {
     const canvas = document.querySelector("#glCanvas");
+    let sw = localStorage.getItem("swidth");
+    let sh = localStorage.getItem("sheight");
+
+    if (sw && sh) {
+        canvas.width = sw;
+        canvas.height = sh;
+    }
+
     // Initialize the GL context
     const gl = canvas.getContext("webgl2");
 
@@ -38,8 +46,8 @@ const width = 560;
 const pixelsPerVoxel = 2;
 const height = 560 * pixelsPerVoxel;
 const border = 0;
-const pixels = new Uint8Array(width * height * 4);
-
+const pixels = [];
+var textures = [];
 
 // vector representing where the camera is currently pointing
 var direction = glMatrix.vec3.create();
@@ -98,6 +106,11 @@ window.addEventListener("keydown", function (event) {
 
 }, true);
 
+function resize(swidth, sheight) {
+    localStorage.setItem("swidth", swidth);
+    localStorage.setItem("sheight", sheight);
+}
+
 function handleMouseMove(event) {
     var eventDoc, doc, body;
 
@@ -128,85 +141,101 @@ function clamp(num, min, max) {
 }
 
 function init(vsSource, fsSource, gl, canvas) {
+    for (let i = 0; i < 9; i++)
+        pixels.push(new Uint8Array(width * height * 4));
+
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
     buffers = initBuffers(gl);
 
-    const internalFormat = gl.RGBA;
-    const srcFormat = gl.RGBA;
-    const srcType = gl.UNSIGNED_BYTE;
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-
-    for (let i = 0; i < 64 * 64 * 64; i++) {
-        //setElement(i, 255, i % 256, 255, ((i % 1000) < 800) * 255, pixels);
-        setElement(i, 255, 255, 255, 0, 0, pixels);
+    for (let c = 0; c < pixels.length; c++) {
+        for (let i = 0; i < 64 * 64 * 64; i++) {
+            setElement(i, 255, 255, 255, 0, 0, c);
+        }
     }
 
-    noise.seed(Math.random());
+    noise.seed(8888);//Math.random());
 
     const frequency = 2.0;
     const fx = 64.0 / frequency;
     const fs = 128.0 / frequency;
-    let x = 0, y = 0, z = 0;
-    x *= 64;
-    y *= 64;
-    z *= 64;
+    for (let i = 0; i < pixels.length; i++) {
 
-    for (let _x = 0; _x < 64; _x++) {
-        for (let _z = 0; _z < 64; _z++) {
+        let x = i % 3, y = 0, z = Math.floor(i / 3);
+        x *= 64;
+        y *= 64;
+        z *= 64;
 
-            if (y < 128) {
-                let surface = noise.simplex2((x + _x) / fs, (z + _z) / fs) * 16 + 48;
+        for (let _x = 0; _x < 64; _x++) {
+            for (let _z = 0; _z < 64; _z++) {
 
-                for (let _y = 0; _y < 64; _y++) {
-                    if (_y < surface) {
-                        let value = noise.simplex3((x + _x) / fx, (y + _y) / fx, (z + _z) / fx) * 255;
-                        let clp = clamp(value + 0, 0, 255);
+                if (y < 128) {
+                    let surface = noise.simplex2((x + _x) / fs, (z + _z) / fs) * 16 + 48;
 
-                        let r = clamp(value, 20, 40) * 5, g = clamp(value, 20, 40) * 5, b = clamp(value, 20, 40) * 5;
+                    for (let _y = 0; _y < 64; _y++) {
+                        if (_y < surface) {
+                            let value = noise.simplex3((x + _x) / fx, (y + _y) / fx, (z + _z) / fx) * 255;
+                            let clp = clamp(value + 0, 0, 255);
 
-                        // grass layer
-                        if (_y > surface - 4) {
-                            r = 0; b = 0;
-                            g = clamp(value, 150, 200);
+                            let r = clamp(value, 20, 40) * 5, g = clamp(value, 20, 40) * 5, b = clamp(value, 20, 40) * 5;
+
+                            // grass layer
+                            if (_y > surface - 4) {
+                                r = 0; b = 0;
+                                g = clamp(value, 150, 200);
+                            }
+
+                            // dirt layer
+                            else if (_y > surface - 8) {
+                                g = 60; b = 0;
+                                r = clamp(value, 90, 180);
+                            }
+
+                            if (clp > 0)
+                                octree_set(_x, _y, _z, r, g, b, 255, 0, i);
+                            else if (_y < 1) {
+                                r = 0;
+                                b = 240;
+                                g = clamp((value + 255) / 2, 0, 240);
+                                octree_set(_x, _y, _z, r, g, b, 255, 8, i);
+                            }
+
                         }
+                    }
+                } else { // clouds
+                    for (let _y = 32; _y < 64; _y++) {
+                        let value = (noise.simplex3((x + _x) / 64, (y + _y) / 64, (z + _z) / 64, 6) * 255);
+                        let clp = clamp(value - 200, 0, 1) * 255;
 
-                        // dirt layer
-                        else if (_y > surface - 8) {
-                            g = 60; b = 0;
-                            r = clamp(value, 90, 180);
-                        }
+                        let r = value, g = value, b = value;
 
                         if (clp > 0)
-                            octree_set(_x, _y, _z, r, g, b, 255, 0, pixels);
-                        else if (_y < 1) {
-                            r = 0;
-                            b = 240;
-                            g = clamp((value + 255) / 2, 0, 240);
-                            octree_set(_x, _y, _z, r, g, b, 255, 8, pixels);
-                        }
-
+                            octree_set(_x, _y, _z, r, g, b, 255, 0, i);
                     }
-                }
-            } else { // clouds
-                for (let _y = 32; _y < 64; _y++) {
-                    let value = (noise.simplex3((x + _x) / 64, (y + _y) / 64, (z + _z) / 64, 6) * 255);
-                    let clp = clamp(value - 200, 0, 1) * 255;
-
-                    let r = value, g = value, b = value;
-
-                    if (clp > 0)
-                        octree_set(_x, _y, _z, r, g, b, 255, 0, pixels);
                 }
             }
         }
     }
+    var textureLoc = gl.getUniformLocation(shaderProgram, "u_textures[0]");
+    // Tell the shader to use texture units 0 to 1
+    let tex_uni = [0];
+    for (let j = 1; j < pixels.length; j++)
+        tex_uni.push(j);
+    gl.uniform1iv(textureLoc, tex_uni);
 
-    gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
-        width, height, border, srcFormat, srcType,
-        pixels);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.generateMipmap(gl.TEXTURE_2D);
+    const internalFormat = gl.RGBA;
+    const srcFormat = gl.RGBA;
+    const srcType = gl.UNSIGNED_BYTE;
+    for (let i = 0; i < pixels.length; i++) {
+        gl.activeTexture(gl.TEXTURE0 + i);
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        textures.push(texture);
+        gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+            width, height, border, srcFormat, srcType,
+            pixels[i]);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.generateMipmap(gl.TEXTURE_2D);
+    }
 
     // Get the attribute location
     var coord = gl.getAttribLocation(shaderProgram, "coordinates");
@@ -219,19 +248,19 @@ function init(vsSource, fsSource, gl, canvas) {
 
     //start render loop
     window.requestAnimationFrame(function (timestamp) {
-        drawScene(gl, canvas, shaderProgram, 0.0, texture);
+        drawScene(gl, canvas, shaderProgram, 0.0);
     });
 }
 
-function setElement(i, r, g, b, a, s, pixels) {
-    pixels[i * 8] = r;
-    pixels[i * 8 + 1] = g;
-    pixels[i * 8 + 2] = b;
-    pixels[i * 8 + 3] = a;
-    pixels[i * 8 + 4] = s;
+function setElement(i, r, g, b, a, s, chunk) {
+    pixels[chunk][i * 8] = r;
+    pixels[chunk][i * 8 + 1] = g;
+    pixels[chunk][i * 8 + 2] = b;
+    pixels[chunk][i * 8 + 3] = a;
+    pixels[chunk][i * 8 + 4] = s;
 }
 
-function octree_set( x, y, z, r, g, b, a, s, pixels) {
+function octree_set( x, y, z, r, g, b, a, s, chunk) {
     // the offset into the tree
     var offset = 0;
 
@@ -249,7 +278,7 @@ function octree_set( x, y, z, r, g, b, a, s, pixels) {
             !!(z & mask) * 4
         );
 
-        pixels[offset * 8 + 3] |= 1 << octant;
+        pixels[chunk][offset * 8 + 3] |= 1 << octant;
 
         // shift the offset so that it aligns to the next layer
         offset <<= 3;
@@ -262,7 +291,7 @@ function octree_set( x, y, z, r, g, b, a, s, pixels) {
 
     }
 
-    setElement( offset, r, g, b, a, s, pixels);
+    setElement( offset, r, g, b, a, s, chunk);
 
 }
 
@@ -294,13 +323,13 @@ function updateCamera() {
     direction[2] = Math.sin(x) * Math.cos(y);
 }
 
-function drawScene(gl, canvas, shaderProgram, time, texture) {
+function drawScene(gl, canvas, shaderProgram, time) {
     updateCamera();
     const scene = [
         pos[0], pos[1], pos[2],
         rotation[0], rotation[1], 0.0,
         0.0, 0.0, 0.0,
-        0.0, 0.0, 0.0,
+        canvas.width, canvas.height, 0.0,
         3.0, 219.0, 252.0, //background
         1.2, 0.01, 100000.0 //projection (fov near far)
     ];
@@ -322,30 +351,38 @@ function drawScene(gl, canvas, shaderProgram, time, texture) {
         cursor3D[0] = Math.round((pos[0] + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
         cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
         cursor3D[2] = Math.round((pos[2] + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
-
-        let r = brush.diameter / 2.0;
-        if (brush.diameter > 4) {
-            for (let x = -r; x < r; x++) {
-                for (let y = -r; y < r; y++) {
-                    for (let z = -r; z < r; z++) {
-                        if (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))
-                            octree_set(cursor3D[0] + x, cursor3D[1] + y, cursor3D[2] + z, brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, pixels);
+        const cx = Math.floor(cursor3D[0] / 64);
+        //const cy = Math.floor(cursor3D[1] / 64);
+        const cz = Math.floor(cursor3D[2] / 64);
+        cursor3D[0] %= 64;
+        cursor3D[1] %= 64;
+        cursor3D[2] %= 64;
+        if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
+            let r = brush.diameter / 2.0;
+            if (brush.diameter > 4) {
+                for (let x = -r; x < r; x++) {
+                    for (let y = -r; y < r; y++) {
+                        for (let z = -r; z < r; z++) {
+                            if (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))
+                                octree_set(cursor3D[0] + x, cursor3D[1] + y, cursor3D[2] + z, brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, cx + cz * 3);
+                        }
                     }
                 }
             }
-        }
-        else {
-            octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, pixels);
-        }
+            else {
+                octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, cx + cz * 3);
+            }
 
-        const internalFormat = gl.RGBA;
-        const srcFormat = gl.RGBA;
-        const srcType = gl.UNSIGNED_BYTE;
-        gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
-            width, height, border, srcFormat, srcType,
-            pixels);
+            const internalFormat = gl.RGBA;
+            const srcFormat = gl.RGBA;
+            const srcType = gl.UNSIGNED_BYTE;
+            gl.activeTexture(gl.TEXTURE0 + cx + cz * 3);
+            gl.bindTexture(gl.TEXTURE_2D, textures[cx + cz * 3]);
+            gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                width, height, border, srcFormat, srcType,
+                pixels[cx + cz * 3]);
+        }
         paint = false;
-        console.log(pixel[3]);
     }
 
     window.requestAnimationFrame(function (timestamp) {

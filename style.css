@@ -3,14 +3,22 @@ body {
 }
 
 #fps_counter {
+    position: relative;
+    bottom: 0px;
     color: white;
+}
+
+#canvas_container{
+    position: absolute;
+    border: dashed;
+    border-color: red;
 }
 
 .crosshair {
     position: absolute;
     z-index: 1;
-    left: 318px;
-    top: 240px;
+    left: 50%;
+    top: 50%;
     width: 5px;
     height: 1px;
     background-color: red;

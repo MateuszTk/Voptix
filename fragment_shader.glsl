@@ -15,13 +15,33 @@ precision mediump float;
 #define ALPHA 3
 //#define CLARITY 0
 
+const int chunk_count = 9;
+
 out vec4 outColor;
-uniform sampler2D u_texture;
+uniform sampler2D u_textures[chunk_count];
 uniform vec3[6] scene_data;
 
-ivec4 getVoxel(int i) {
+ivec4 getVoxel(int i, int chunk) {
 	ivec2 pos = ivec2(i % 560, floor(float(i) / 560.0f));
-	vec4 fvoxel = texelFetch(u_texture, pos, 0);
+	vec4 fvoxel;
+	if(chunk == 0)
+		fvoxel = texelFetch(u_textures[0], pos, 0);
+	else if(chunk == 1)
+		fvoxel = texelFetch(u_textures[1], pos, 0);
+	else if (chunk == 2)
+		fvoxel = texelFetch(u_textures[2], pos, 0);
+	else if (chunk == 3)
+		fvoxel = texelFetch(u_textures[3], pos, 0);
+	else if (chunk == 4)
+		fvoxel = texelFetch(u_textures[4], pos, 0);
+	else if (chunk == 5)
+		fvoxel = texelFetch(u_textures[5], pos, 0);
+	else if (chunk == 6)
+		fvoxel = texelFetch(u_textures[6], pos, 0);
+	else if (chunk == 7)
+		fvoxel = texelFetch(u_textures[7], pos, 0);
+	else if (chunk == 8)
+		fvoxel = texelFetch(u_textures[8], pos, 0);
 	ivec4 ivoxel = ivec4(int(fvoxel.x * 255.0f), int(fvoxel.y * 255.0f), int(fvoxel.z * 255.0f), int(fvoxel.w * 255.0f));
 	return ivoxel;
 }
@@ -36,7 +56,7 @@ struct Scene{
 	vec3 camera_origin;
 	vec3 camera_direction;
 	vec3 ambient_light;
-	vec3 sky_light;
+	vec3 screen;
 	vec3 background;
 	vec3 projection;
 };
@@ -192,7 +212,7 @@ int octree_test_octant(float csize, Ray ray, vec3 xyz, int id, inout float dist,
 }
 
 // draw single pixel queried from octree with a 3D ray
-void octree_get_pixel(vec3 xyzc, Ray ray, int octree, inout float max_dist, inout vec4 voutput, inout vec4 matoutput, int octree_depth, float csize, inout vec3 box_pos) {
+void octree_get_pixel(vec3 xyzc, Ray ray, int chunk, inout float max_dist, inout vec4 voutput, inout vec4 matoutput, int octree_depth, float csize, inout vec3 box_pos) {
 
 	float dist;
 
@@ -229,7 +249,7 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int octree, inout float max_dist, inou
 		alt_data[depth].xyzo = xyzo;
 
 		// mask representing transparency of children
-		int alpha_mask = alt_data[depth].mask & getVoxel((octree + (layerindex - pow8 + globalid)) * VOXEL_SIZE).w;
+		int alpha_mask = alt_data[depth].mask & getVoxel((layerindex - pow8 + globalid) * VOXEL_SIZE, chunk).w;
 
 		// clearing the closest distance to the voxel
 		dist = max_dist;
@@ -287,9 +307,9 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int octree, inout float max_dist, inou
 	if (dist < max_dist) {
 		max_dist = dist;
 
-		int index = ((1 - pow8) / -7 + globalid);
-		vec4 vox = vec4(getVoxel((index + octree) * VOXEL_SIZE));
-		vec4 vox_mat = vec4(getVoxel((index + octree) * VOXEL_SIZE + 1));
+		int index = ((1 - pow8) / -7 + globalid) * VOXEL_SIZE;
+		vec4 vox = vec4(getVoxel(index, chunk));
+		vec4 vox_mat = vec4(getVoxel(index + 1, chunk));
 		voutput.x = vox.x;
 		voutput.y = vox.y;
 		voutput.z = vox.z;
@@ -306,7 +326,6 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int octree, inout float max_dist, inou
 }
 
 void main() {
-	const int chunk_count = 1;
 
 	Scene scene = Scene(
 		scene_data[0],
@@ -330,7 +349,7 @@ void main() {
 	const float ray_retreat = 0.01f;
 
 	Ray ray;
-	load_primary_ray(ray, scene, pos, 640.0f, 480.0f, tan(fov / 2.0f));
+	load_primary_ray(ray, scene, pos, scene.screen.x, scene.screen.y, tan(fov / 2.0f));
 	Ray primary_ray = ray;
 
 	int octree_depth = 6;
@@ -353,11 +372,11 @@ void main() {
 			// iterate all chunks
 			for (int chunk = 0; chunk < chunk_count; chunk++) {
 
-				// read chunk offset from chunks array
-				vec3 chunk_pos;
+				// read chunk offset from chunk array
+				vec3 chunk_pos = vec3(chunk % 3, 0, chunk / 3);
 				//load_vec3(chunk_pos, chunks + chunk * 3);
 
-				chunk_pos = chunk_pos * scale;
+				chunk_pos = chunk_pos * size;
 
 				vec3 bounds[2] = vec3[2](
 					chunk_pos,
@@ -370,13 +389,10 @@ void main() {
 					// 222 = csize * sqrt(3)
 					if (tmp_dist > -222.0f && tmp_dist < max_dist) {
 
-						// get pointer to octree of given chunk
-						int octree = (chunk * OCTREE_SIZE);
-
 						// render the chunk
-						vec3 box_pos_t;
-						octree_get_pixel(chunk_pos, ray, octree, max_dist, color, tmpmat, octree_depth, size, box_pos_t);
-						if (spp == 0) {
+						vec3 box_pos_t = vec3(-1,-1,-1);
+						octree_get_pixel(chunk_pos, ray, chunk, max_dist, color, tmpmat, octree_depth, size, box_pos_t);
+						if (spp == 0 && box_pos_t.x != -1.0f ) {
 							box_pos = box_pos_t;
 							vmat = tmpmat;
 						}
@@ -399,7 +415,6 @@ void main() {
 				color = ray_pixel_color;
 
 				vec3 dir = vec3(
-					//even more random
 					2.0f,
 					1.0f,
 					-1.0f
