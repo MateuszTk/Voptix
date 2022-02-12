@@ -55,7 +55,7 @@ struct Ray {
 struct Scene{
 	vec3 camera_origin;
 	vec3 camera_direction;
-	vec3 ambient_light;
+	vec3 chunk_offset;
 	vec3 screen;
 	vec3 background;
 	vec3 projection;
@@ -373,7 +373,8 @@ void main() {
 			for (int chunk = 0; chunk < chunk_count; chunk++) {
 
 				// read chunk offset from chunk array
-				vec3 chunk_pos = vec3(chunk % 3, 0, chunk / 3);
+				//vec3((chunk % 3 + (int(scene.chunk_offset.x)) % 3 + 3) % 3, 0, (chunk / 3 + (int(scene.chunk_offset.z)) % 3 + 3) % 3);
+				vec3 chunk_pos = vec3((chunk % 3 + int(scene.chunk_offset.x)) % 3, 0, (chunk / 3 + int(scene.chunk_offset.z)) % 3);
 				//load_vec3(chunk_pos, chunks + chunk * 3);
 
 				chunk_pos = chunk_pos * size;
