@@ -108,45 +108,45 @@ body {
 }
 
 
-.slider::-moz-range-thumb {
+.slider {
     -webkit-appearance: none;
-    width: 20px; /* Set a specific slider handle width */
+    width: 180px; /* Set a specific slider handle width */
     height: 20px; /* Slider handle height */
-    background: #808080; /* Green background */
+    background-color: red; /* Green background */
     cursor: pointer; /* Cursor on hover */
     border-radius: 25px;
 }
 
-.slider2::-moz-range-thumb {
+.slider2 {
     -webkit-appearance: none;
-    width: 20px; /* Set a specific slider handle width */
+    width: 180px; /* Set a specific slider handle width */
     height: 20px; /* Slider handle height */
-    background: #808080; /* Green background */
+    background-color: green; /* Green background */
     cursor: pointer; /* Cursor on hover */
     border-radius: 25px;
 }
 
-.slider3::-moz-range-thumb {
+.slider3 {
     -webkit-appearance: none;
-    width: 20px; /* Set a specific slider handle width */
+    width: 180px; /* Set a specific slider handle width */
     height: 20px; /* Slider handle height */
-    background: #808080; /* Green background */
+    background-color: blue; /* Green background */
     cursor: pointer; /* Cursor on hover */
     border-radius: 25px;
 }
 
-.slider4::-moz-range-thumb {
+.slider4 {
     -webkit-appearance: none;
-    width: 20px; /* Set a specific slider handle width */
+    width: 180px; /* Set a specific slider handle width */
     height: 20px; /* Slider handle height */
-    background: #808080; /* Green background */
+    background-color: white; /* Green background */
     cursor: pointer; /* Cursor on hover */
     border-radius: 25px;
 }
 
-.slider5::-moz-range-thumb {
+.slider5 {
     -webkit-appearance: none;
-    width: 20px; /* Set a specific slider handle width */
+    width: 180px; /* Set a specific slider handle width */
     height: 20px; /* Slider handle height */
     background: #808080; /* Green background */
     cursor: pointer; /* Cursor on hover */
