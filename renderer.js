@@ -30,10 +30,6 @@ function radians(angle) {
     return angle * (Math.PI / 180);
 }
 
-document.addEventListener("click", function () {
-    document.body.requestPointerLock();
-});
-
 var mouseX = 0, mouseY = 0;
 var pos = glMatrix.vec3.fromValues(0, 130, 0);
 var chunk_offset = glMatrix.vec3.fromValues(20, 0, 20);
@@ -45,7 +41,6 @@ var cursor3D = glMatrix.vec3.create();
 var paint = false;
 var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0};
 
-const level = 0;
 const width = 560;
 const pixelsPerVoxel = 2;
 const height = 560 * pixelsPerVoxel;
@@ -111,6 +106,10 @@ window.addEventListener("keydown", function (event) {
             paint = true;
             break;
 
+        case "Enter":
+            document.body.requestPointerLock();
+            break;
+
         default:
             break;
     }
@@ -133,7 +132,7 @@ function send_chunk(i, gl) {
     const srcType = gl.UNSIGNED_BYTE;
     gl.activeTexture(gl.TEXTURE0 + i);
     gl.bindTexture(gl.TEXTURE_2D, textures[i]);
-    gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+    gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat,
         width, height, border, srcFormat, srcType,
         pixels[i]);
 }
@@ -254,7 +253,7 @@ function init(vsSource, fsSource, gl, canvas) {
         const texture = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, texture);
         textures.push(texture);
-        gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+        gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat,
             width, height, border, srcFormat, srcType,
             pixels[i]);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);

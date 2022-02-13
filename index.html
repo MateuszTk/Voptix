@@ -15,7 +15,149 @@
     <div id="canvas_container">
         <canvas id="glCanvas" width="1280" height="720"></canvas>
         <div class="crosshair"></div>
+
+        <!--MaciekTk88-->
+        <div class="pole1">
+            <div class=" edytor">CUBE EDITOR</div>
+
+            <div class="suwaki">
+                <div class="slidecontainer"></div>
+                <font style="font-size: 30px; color: red; font-family: Impact">R.</font>
+                <input type="range" min="0" max="255" value="255" class="slider" id="RRange">
+                <span style="font-size: 30px; color: red; font-family: Impact" id="demo"></span>
+
+                <br>
+
+                <font style="font-size: 30px; color: green; font-family: Impact">G.</font>
+                <input type="range" min="0" max="255" value="255" class="slider2" id="GRange">
+                <span style="font-size: 30px; color: green; font-family: Impact" id="demo1"></span>
+
+
+                <br>
+
+                <font style="font-size: 30px; color: blue; font-family: Impact">B.</font>
+                <input type="range" min="0" max="255" value="255" class="slider3" id="BRange">
+                <span style="font-size: 30px; color: blue; font-family: Impact" id="demo2"></span>
+
+                <br>
+
+                <font style="font-size: 30px; color: white; font-family: Impact">C.</font>
+                <input type="range" min="0" max="255" value="255" class="slider4" id="ARange">
+                <span style="font-size: 30px; color: white; font-family: Impact" id="demo3"></span>
+            </div>
+
+            <div id="suwaki">
+                <div class="zdiencie">
+                    <div id="square">
+                        <div id="gora">
+
+                            <img src="gora.jpg" width="200" height="200">
+
+                            <script>
+                                var r = 255, g = 255, b = 255, c = 255;
+                                var square = document.getElementById("square");
+                                var gora = document.getElementById("gora");
+
+                                var slider = document.getElementById("RRange");
+                                var output = document.getElementById("demo");
+                                output.innerHTML = slider.value; // Display the default slider value
+                                slider.oninput = function () {
+                                    output.innerHTML = slider.value;
+                                    r = slider.value;
+                                    square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
+                                    brush.color_r = r;
+                                    brush.color_g = g;
+                                    brush.color_b = b;
+                                    brush.clarity = c;
+                                }
+
+                                var slider1 = document.getElementById("GRange");
+                                var output1 = document.getElementById("demo1");
+                                output1.innerHTML = slider1.value; // Display the default slider value
+                                slider1.oninput = function () {
+                                    output1.innerHTML = slider1.value;
+                                    g = slider1.value;
+                                    square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
+                                    brush.color_r = r;
+                                    brush.color_g = g;
+                                    brush.color_b = b;
+                                    brush.clarity = c;
+                                }
+
+                                var slider2 = document.getElementById("BRange");
+                                var output2 = document.getElementById("demo2");
+                                output2.innerHTML = slider2.value; // Display the default slider value
+                                slider2.oninput = function () {
+                                    output2.innerHTML = slider2.value;
+                                    b = slider2.value;
+                                    square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
+                                    brush.color_r = r;
+                                    brush.color_g = g;
+                                    brush.color_b = b;
+                                    brush.clarity = c;
+                                }
+
+                                var slider3 = document.getElementById("ARange");
+                                var output3 = document.getElementById("demo3");
+                                output3.innerHTML = slider3.value; // Display the default slider value
+                                slider3.oninput = function () {
+                                    output3.innerHTML = slider3.value;
+                                    c = slider3.value;
+                                    gora.style.opacity = c / 255;
+                                    brush.color_r = r;
+                                    brush.color_g = g;
+                                    brush.color_b = b;
+                                    brush.clarity = c;
+                                }
+
+
+                            </script>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="pole2">
+            <div class="edytor">BRUSH EDITOR</div>
+            <div class="suwaki2">
+
+                <font style="font-size: 30px; color: white; font-family: Impact">Size</font>
+                <input type="range" min="1" max="40" value="1" class="slider5" id="BsRange">
+                <span style="font-size: 30px; color: white; font-family: Impact" id="demo4"></span>
+            </div>
+
+            <div id="circle"></div>
+
+            <script>
+                var bs;
+                var circle = document.getElementById("circle");
+
+
+                var slider4 = document.getElementById("BsRange");
+                var output4 = document.getElementById("demo4");
+                output4.innerHTML = slider4.value; // Display the default slider value
+                slider4.oninput = function () {
+                    output4.innerHTML = slider4.value;
+                    bs = slider4.value;
+                    circle.style.height = (bs * 2).toString() + "px";
+                    circle.style.width = (bs * 2).toString() + "px";
+                    var x = 443;
+                    var y = 145;
+
+                    circle.style.left = (x - bs * 2 / 2).toString() + "px";
+                    circle.style.top = (y - bs * 1).toString() + "px";
+                    brush.diameter = bs;
+                }
+            </script>
+
+        </div>
     </div>
+
+    
+
+
 </body>
 
 </html>
