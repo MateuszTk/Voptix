@@ -30,6 +30,10 @@ function radians(angle) {
     return angle * (Math.PI / 180);
 }
 
+document.addEventListener("click", function () {
+    document.body.requestPointerLock();
+});
+
 var mouseX = 0, mouseY = 0;
 var pos = glMatrix.vec3.fromValues(0, 130, 0);
 var chunk_offset = glMatrix.vec3.fromValues(20, 0, 20);
@@ -56,7 +60,13 @@ var direction = glMatrix.vec3.create();
 const sensivity = 0.8;
 
 window.onload = main;
+
 document.onmousemove = handleMouseMove;
+function handleMouseMove(event) {
+    mouseX += event.movementX;
+    mouseY += event.movementY;
+}
+
 window.addEventListener("keydown", function (event) {
 
     glMatrix.vec3.normalize(direction, direction);
@@ -112,30 +122,6 @@ function resize(swidth, sheight) {
     localStorage.setItem("sheight", sheight);
 }
 
-function handleMouseMove(event) {
-    var eventDoc, doc, body;
-
-    event = event || window.event; // IE-ism
-
-    // If pageX/Y aren't available and clientX/Y are,
-    // calculate pageX/Y - logic taken from jQuery.
-    // (This is to support old IE)
-    if (event.pageX == null && event.clientX != null) {
-        eventDoc = (event.target && event.target.ownerDocument) || document;
-        doc = eventDoc.documentElement;
-        body = eventDoc.body;
-
-        event.pageX = event.clientX +
-            (doc && doc.scrollLeft || body && body.scrollLeft || 0) -
-            (doc && doc.clientLeft || body && body.clientLeft || 0);
-        event.pageY = event.clientY +
-            (doc && doc.scrollTop || body && body.scrollTop || 0) -
-            (doc && doc.clientTop || body && body.clientTop || 0);
-    }
-
-    mouseX = event.pageX;
-    mouseY = event.pageY;
-}
 
 function clamp(num, min, max) {
     return ((num <= min) ? min : ((num >= max) ? max : num));
