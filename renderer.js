@@ -373,7 +373,8 @@ function updateCamera(gl) {
         chunk_offset[2]--;
     }
 }
-
+var wait = 0;
+var fps_time = 0;
 function drawScene(gl, canvas, shaderProgram, time) {
     updateCamera(gl);
     const scene = [
@@ -431,7 +432,14 @@ function drawScene(gl, canvas, shaderProgram, time) {
     }
 
     window.requestAnimationFrame(function (timestamp) {
-        document.getElementById('fps_counter').innerHTML = ('FPS:' + (1000.0 / (timestamp - time)));
+        if (wait > 10) {
+            document.getElementById('fps_counter').innerHTML = ('FPS:' + (10000.0 / fps_time));
+            fps_time = 0;
+            wait = 0;
+        }
+        else
+            fps_time += timestamp - time;
+        wait++;
         drawScene(gl, canvas, shaderProgram, timestamp);
     });
 }
