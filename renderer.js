@@ -31,7 +31,7 @@ function radians(angle) {
 }
 
 var mouseX = 0, mouseY = 0;
-var pos = glMatrix.vec3.fromValues(0, 130, 0);
+var pos = glMatrix.vec3.fromValues(0, 65, 0);
 var chunk_offset = glMatrix.vec3.fromValues(20, 0, 20);
 var rotation = glMatrix.vec3.create();
 var cursor = glMatrix.vec3.create();
@@ -41,10 +41,8 @@ var cursor3D = glMatrix.vec3.create();
 var paint = false;
 var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0};
 
-const width = 560;
 const pixelsPerVoxel = 2;
-const height = 560 * pixelsPerVoxel;
-const border = 0;
+const size = 64;
 const pixels = [];
 var textures = [];
 const chunk_map = new Map;
@@ -131,15 +129,21 @@ function send_chunk(i, gl) {
     const srcFormat = gl.RGBA;
     const srcType = gl.UNSIGNED_BYTE;
     gl.activeTexture(gl.TEXTURE0 + i);
-    gl.bindTexture(gl.TEXTURE_2D, textures[i]);
-    gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat,
-        width, height, border, srcFormat, srcType,
-        pixels[i]);
+    gl.bindTexture(gl.TEXTURE_3D, textures[i]);
+    let msize = size;
+    for (let c = 0; c < 7; c++) {
+        gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
+            msize * 2, msize, msize, 0, srcFormat, srcType,
+            pixels[i][c]);
+        msize /= 2;
+    }
 }
 
 
 function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     console.log("x" + x + " y" + y + " z" + z);
+    //let i = (x % 3) + (z % 3) * 3;
+    //pixels[i].fill(255, 0, 64 * 64 * 64 * 8);
 
     noise.seed(8888);//Math.random());
     const frequency = 2.0;
@@ -149,7 +153,10 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     let i = (x % 3) + (z % 3) * 3;
     if (send) {
         //save old chunk
-        chunk_map.set([sendx, sendy, sendz].join(','), new Uint8Array(pixels[(sendx % 3) + (sendz % 3) * 3]));
+        let chunk = [];
+        for (let lv = 0; lv < 7; lv++)
+            chunk.push(new Uint8Array(pixels[(sendx % 3) + (sendz % 3) * 3][lv]));
+        chunk_map.set([sendx, sendy, sendz].join(','), chunk);
         //console.log("saved");
         const svkey = [x, y, z];
         const sskey = svkey.join(',');
@@ -165,9 +172,11 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
         y *= 64;
         z *= 64;
 
-        for (let j = 0; j < 64 * 64 * 64; j++) {
-            setElement(j, 255, 255, 255, 0, 0, i);
+        
+        for (let lv = 0; lv < 7; lv++) {
+            pixels[i][lv].fill(0, 0, pixels[i][lv].length);
         }
+
 
         for (let _x = 0; _x < 64; _x++) {
             for (let _z = 0; _z < 64; _z++) {
@@ -226,8 +235,15 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
 }
 
 function init(vsSource, fsSource, gl, canvas) {
-    for (let i = 0; i < 9; i++)
-        pixels.push(new Uint8Array(width * height * 4));
+    for (let i = 0; i < 9; i++) {
+        let chunk = [];
+        let msize = size;
+        for (let level = 0; level < 7; level++) {
+            chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
+            msize /= 2;
+        }
+        pixels.push(chunk);
+    }
 
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
     buffers = initBuffers(gl);
@@ -239,7 +255,7 @@ function init(vsSource, fsSource, gl, canvas) {
     }
 
     var textureLoc = gl.getUniformLocation(shaderProgram, "u_textures[0]");
-    // Tell the shader to use texture units 0 to 1
+    // Tell the shader to use texture units 0 to pixel.length
     let tex_uni = [0];
     for (let j = 1; j < pixels.length; j++)
         tex_uni.push(j);
@@ -251,13 +267,21 @@ function init(vsSource, fsSource, gl, canvas) {
     for (let i = 0; i < pixels.length; i++) {
         gl.activeTexture(gl.TEXTURE0 + i);
         const texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.bindTexture(gl.TEXTURE_3D, texture);
         textures.push(texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat,
-            width, height, border, srcFormat, srcType,
-            pixels[i]);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
+            size * 2, size, size, 0, srcFormat, srcType,
+            pixels[i][0]);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.generateMipmap(gl.TEXTURE_3D);
+        let msize = size / 2;
+        for (let c = 1; c < 7; c++) {
+            gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
+                msize * 2, msize, msize, 0, srcFormat, srcType,
+                pixels[i][c]);
+            msize /= 2;
+        }
+        gl.bindTexture(gl.TEXTURE_3D, texture);
     }
 
     // Get the attribute location
@@ -275,46 +299,62 @@ function init(vsSource, fsSource, gl, canvas) {
     });
 }
 
-function setElement(i, r, g, b, a, s, chunk) {
-    pixels[chunk][i * 8] = r;
-    pixels[chunk][i * 8 + 1] = g;
-    pixels[chunk][i * 8 + 2] = b;
-    pixels[chunk][i * 8 + 3] = a;
-    pixels[chunk][i * 8 + 4] = s;
+function setElement(x, y, z, r, g, b, a, s, chunk, level, len) {
+    let ind = (x + y * len + z * len * len) * 8;
+    pixels[chunk][level][ind] = r;
+    pixels[chunk][level][ind + 1] = g;
+    pixels[chunk][level][ind + 2] = b;
+    pixels[chunk][level][ind + 3] = a;
+    pixels[chunk][level][ind + 4] = s;
+
 }
 
-function octree_set( x, y, z, r, g, b, a, s, chunk) {
-    // the offset into the tree
-    let offset = 0;
+function octree_set(x, y, z, r, g, b, a, s, chunk) {
+    /*pixels[chunk][6][0] = 255;
+    pixels[chunk][6][1] = 255;
+    pixels[chunk][6][2] = 255;
+    pixels[chunk][6][3] = 255;
 
+    pixels[chunk][6][4] = 0;
+    pixels[chunk][6][5] = 255;
+    pixels[chunk][6][6] = 0;
+    pixels[chunk][6][7] = 0;*/
+
+    //pixels[chunk][6][4] = 255;
+    //pixels[chunk][6][5] = 255;
+    //pixels[chunk][6][6] = 255;
+    //pixels[chunk][6][7] = 255;
     // copy iterator mask
-    let depth = 6;
-    let mask = 1 << (depth - 1);
 
     // iterate until the mask is shifted to target (leaf) layer
-    while (mask) {
+    let xo = 0, yo = 0, zo = 0;
+    let pow2 = 1;
+    let csize = 64;
+    for (let depth = 0; depth < 6; depth++) {
+        let ind = ((xo >> (6 - depth)) + (yo >> (6 - depth)) * pow2 + (zo >> (6 - depth)) * pow2 * pow2) * 8;
 
-        // calculate the octant by decomposing the xyz to its binary form
-        var octant = (
-            !!(x & mask) * 1 +
-            !!(y & mask) * 2 +
-            !!(z & mask) * 4
-        );
+        csize /= 2;
 
-        pixels[chunk][offset * 8 + 3] |= 1 << octant;
+        let oc = 0;
 
-        // shift the offset so that it aligns to the next layer
-        offset <<= 3;
+        xo += (((x >> (5 - depth)) & 1 )> 0) * csize;
+        yo += (((y >> (5 - depth)) & 1 )> 0) * csize;
+        zo += (((z >> (5 - depth)) & 1 )> 0) * csize;
+        oc = (((x >> (5 - depth)) & 1) * 1) + (((y >> (5 - depth)) & 1) * 2) + (((z >> (5 - depth)) & 1) * 4);
+        pixels[chunk][6 - depth][ind + 3] |= 1 << oc;
 
-        // add octant id to the shifted offset, keep the octant id in range 1-8, not 0-7
-        offset += octant + 1;
+        pixels[chunk][6 - depth][ind] = r;
+        pixels[chunk][6 - depth][ind + 1] = g;
+        pixels[chunk][6 - depth][ind + 2] = b;
+        pixels[chunk][6 - depth][ind + 4] = s;
 
-        // shift the mask
-        mask >>= 1;
+        //pixels[chunk][(2 * x + y * 2 * len + z * 2 * len * len) * 4 + 3] = 255;//|= 1 << octant;
 
+        pow2 *= 2;
     }
 
-    setElement( offset, r, g, b, a, s, chunk);
+
+    setElement( x, y, z, r, g, b, a, s, chunk,0, 64);
 
 }
 
@@ -345,29 +385,29 @@ function updateCamera(gl) {
     direction[1] = -Math.sin(y);
     direction[2] = Math.sin(x) * Math.cos(y);
 
-    if (pos[0] > 64) {
-        pos[0] -= 128;
+    if (pos[0] > 32) {
+        pos[0] -= 64;
         for (let z = 0; z < 3; z++)
             generate_chunk(chunk_offset[0] + 2, chunk_offset[1], chunk_offset[2] + z - 1, gl, true, chunk_offset[0] - 1, chunk_offset[1], chunk_offset[2] + z - 1);
         chunk_offset[0]++;
     }
 
-    if (pos[2] > 64) {
-        pos[2] -= 128;
+    if (pos[2] > 32) {
+        pos[2] -= 64;
         for (let x = 0; x < 3; x++)
             generate_chunk(chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] + 2, gl, true, chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] - 1);
         chunk_offset[2]++;
     }
     
-    if (pos[0] < -64) {
-        pos[0] += 128;
+    if (pos[0] < -32) {
+        pos[0] += 64;
         for (let z = 0; z < 3; z++)
             generate_chunk(chunk_offset[0] - 2, chunk_offset[1], chunk_offset[2] + z - 1, gl, true, chunk_offset[0] + 1, chunk_offset[1], chunk_offset[2] + z - 1);
         chunk_offset[0]--;
     }
 
-    if (pos[2] < -64) {
-        pos[2] += 128;
+    if (pos[2] < -32) {
+        pos[2] += 64;
         for (let x = 0; x < 3; x++)
             generate_chunk(chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] - 2, gl, true, chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] + 1);
         chunk_offset[2]--;
@@ -378,11 +418,11 @@ var fps_time = 0;
 function drawScene(gl, canvas, shaderProgram, time) {
     updateCamera(gl);
     const scene = [
-        pos[0] + 128.0 + 64.0, pos[1], pos[2] + 128.0 + 64.0,
+        pos[0] + 64.0 + 32.0, pos[1], pos[2] + 64.0 + 32.0,
         rotation[0], rotation[1], 0.0,
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],
         canvas.width, canvas.height, 0.0,
-        3.0, 219.0, 252.0, //background
+        3.0 / 255.0, 219.0 / 255.0, 252.0 / 255.0, //background
         1.2, 0.01, 100000.0 //projection (fov near far)
     ];
 
@@ -400,9 +440,9 @@ function drawScene(gl, canvas, shaderProgram, time) {
     if (paint) {
         const pixel = new Uint8Array(4);
         gl.readPixels(canvas.width / 2, canvas.height / 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-        cursor3D[0] = Math.round((pos[0] + 128.0 + 64.0 + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
-        cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
-        cursor3D[2] = Math.round((pos[2] + 128.0 + 64.0 + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5) / 2;
+        cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+        cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+        cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5);
         const cx = Math.floor(cursor3D[0] / 64);
         //const cy = Math.floor(cursor3D[1] / 64);
         const cz = Math.floor(cursor3D[2] / 64);

@@ -1,6 +1,7 @@
 #version 300 es
 
 precision mediump float;
+precision mediump sampler3D;
 
 // the 299593 is derived from: `((1 - pow(8, (octree_depth + 1))) / -7)`
 #define OCTREE_SIZE 299593
@@ -18,32 +19,38 @@ precision mediump float;
 const int chunk_count = 9;
 
 out vec4 outColor;
-uniform sampler2D u_textures[chunk_count];
+uniform sampler3D u_textures[chunk_count];
 uniform vec3[6] scene_data;
 
-ivec4 getVoxel(int i, int chunk) {
-	ivec2 pos = ivec2(i % 560, floor(float(i) / 560.0f));
+vec4 getVoxel(vec3 pos, float i, float level, int chunk) {
+	level = 6.0f - level;
+
+	pos = vec3((pos.x * 2.0f + i) / 128.0f, pos.y / 64.0f, pos.z / 64.0f);
 	vec4 fvoxel;
-	if(chunk == 0)
-		fvoxel = texelFetch(u_textures[0], pos, 0);
-	else if(chunk == 1)
-		fvoxel = texelFetch(u_textures[1], pos, 0);
+
+	if (chunk == 0)
+		fvoxel = textureLod(u_textures[0], pos, level);
+	else if (chunk == 1)
+		fvoxel = textureLod(u_textures[1], pos, level);
 	else if (chunk == 2)
-		fvoxel = texelFetch(u_textures[2], pos, 0);
+		fvoxel = textureLod(u_textures[2], pos, level);
 	else if (chunk == 3)
-		fvoxel = texelFetch(u_textures[3], pos, 0);
+		fvoxel = textureLod(u_textures[3], pos, level);
 	else if (chunk == 4)
-		fvoxel = texelFetch(u_textures[4], pos, 0);
+		fvoxel = textureLod(u_textures[4], pos, level);
 	else if (chunk == 5)
-		fvoxel = texelFetch(u_textures[5], pos, 0);
+		fvoxel = textureLod(u_textures[5], pos, level);
 	else if (chunk == 6)
-		fvoxel = texelFetch(u_textures[6], pos, 0);
+		fvoxel = textureLod(u_textures[6], pos, level);
 	else if (chunk == 7)
-		fvoxel = texelFetch(u_textures[7], pos, 0);
+		fvoxel = textureLod(u_textures[7], pos, level);
 	else if (chunk == 8)
-		fvoxel = texelFetch(u_textures[8], pos, 0);
-	ivec4 ivoxel = ivec4(int(fvoxel.x * 255.0f), int(fvoxel.y * 255.0f), int(fvoxel.z * 255.0f), int(fvoxel.w * 255.0f));
-	return ivoxel;
+		fvoxel = textureLod(u_textures[8], pos, level);
+	//integer approach
+	//ivec3 posi = ivec3((int(pos.x) >> level) * 2 + i, int(pos.y) >> level, int(pos.z) >> level);
+	//fvoxel = texelFetch(u_textures[0], posi, level);
+
+	return fvoxel;//ivec4(int(fvoxel.x * 255.0f), int(fvoxel.y * 255.0f), int(fvoxel.z * 255.0f), int(fvoxel.w * 255.0f));
 }
 
 struct Ray {
@@ -52,7 +59,7 @@ struct Ray {
 	int sign[3];
 };
 
-struct Scene{
+struct Scene {
 	vec3 camera_origin;
 	vec3 camera_direction;
 	vec3 chunk_offset;
@@ -64,9 +71,7 @@ struct Scene{
 struct OctreeData {
 	vec3 xyzo;
 	float csize;
-	int globalid;
-	int layerindex;
-	int pow8;
+	float layerindex;
 	int oc;
 	int mask;
 };
@@ -162,7 +167,7 @@ int octree_test_octant(float csize, Ray ray, vec3 xyz, int id, inout float dist,
 	int vid = 255;
 	float tmpdist;
 
-	vec3 bounds[2] = vec3[2]( xyz, vec3( csize + xyz.x, csize + xyz.y, csize + xyz.z ) );
+	vec3 bounds[2] = vec3[2](xyz, vec3(csize + xyz.x, csize + xyz.y, csize + xyz.z));
 
 	if (((mask >> id) & 1) > 0) {
 		if (intersects(ray, bounds, tmpdist)) {
@@ -220,16 +225,10 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int chunk, inout float max_dist, inout
 	int oc = 255;
 
 	// coordinates of the currently tested octant
-	vec3 xyzo = vec3( 0, 0, 0 );
-
-	// id of tested voxel relative to the start of the currently tested level
-	int globalid = 0;
+	vec3 xyzo = vec3(0, 0, 0);
 
 	// id of the first element in the currently tested level
-	int layerindex = 1;
-
-	// the power of 8 calculated progressively
-	int pow8 = 1;
+	float layerindex = 0.0f;
 
 	// store alternate nodes in case of ray miss
 	OctreeData alt_data[7];
@@ -242,23 +241,18 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int chunk, inout float max_dist, inout
 	for (; depth <= octree_depth; depth++) {
 
 		// store variables in case of having to choose a different path 
-		alt_data[depth].globalid = globalid;
 		alt_data[depth].csize = csize;
 		alt_data[depth].layerindex = layerindex;
-		alt_data[depth].pow8 = pow8;
 		alt_data[depth].xyzo = xyzo;
 
 		// mask representing transparency of children
-		int alpha_mask = alt_data[depth].mask & getVoxel((layerindex - pow8 + globalid) * VOXEL_SIZE, chunk).w;
+		int alpha_mask = alt_data[depth].mask & int(getVoxel(xyzo, 0.0f, layerindex, chunk).w * 255.0f);
 
 		// clearing the closest distance to the voxel
 		dist = max_dist;
 
 		// decreasing octant size
 		csize /= 2.0f;
-
-		// entry to the area where children will be tested
-		globalid *= 8;
 
 		// test first 4 octants
 		if ((alt_data[depth].mask & 15) > 0)  //0b00001111
@@ -272,22 +266,18 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int chunk, inout float max_dist, inout
 			if (oc1 != 255) oc = oc1;
 		}
 
-		// move to the next child (by the id of the one that got intersected)
-		globalid += oc;
-
 		// if intersected anything
 		if (oc != 255) {
 
 			// move coordinates of the currently tested octant
-			xyzo.x += float(!!((oc & 1) > 0)) * csize;
-			xyzo.y += float(!!((oc & 2) > 0)) * csize;
-			xyzo.z += float(!!((oc & 4) > 0)) * csize;
+			xyzo.x += float((oc & 1) > 0) * csize;
+			xyzo.y += float((oc & 2) > 0) * csize;
+			xyzo.z += float((oc & 4) > 0) * csize;
+			//xyzo *= vec3(2.0f, 2.0f, 2.0f);
 
 			alt_data[depth].mask &= ~(1 << oc);
 			alt_data[depth].oc = oc;
-			pow8 *= 8;
-			layerindex += pow8;
-
+			layerindex++;
 		}
 		else {
 			if (alt_data[1].mask == 0 || depth == 1)
@@ -295,9 +285,7 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int chunk, inout float max_dist, inout
 
 			alt_data[depth].mask = 255;
 
-			pow8 = alt_data[depth - 1].pow8;
 			layerindex = alt_data[depth - 1].layerindex;
-			globalid = alt_data[depth - 1].globalid;
 			csize = alt_data[depth - 1].csize;
 			xyzo = alt_data[depth - 1].xyzo;
 			depth -= 2;
@@ -307,9 +295,8 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int chunk, inout float max_dist, inout
 	if (dist < max_dist) {
 		max_dist = dist;
 
-		int index = ((1 - pow8) / -7 + globalid) * VOXEL_SIZE;
-		vec4 vox = vec4(getVoxel(index, chunk));
-		vec4 vox_mat = vec4(getVoxel(index + 1, chunk));
+		vec4 vox = getVoxel(xyzo, 0.0f, 6.0f, chunk);
+		vec4 vox_mat = getVoxel(xyzo, 1.0f, 6.0f, chunk);
 		voutput.x = vox.x;
 		voutput.y = vox.y;
 		voutput.z = vox.z;
@@ -319,9 +306,9 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int chunk, inout float max_dist, inout
 		matoutput.x = vox_mat.x;
 
 		box_pos = xyzo + xyzc;
-		box_pos.x += 1.0f;
-		box_pos.y += 1.0f;
-		box_pos.z += 1.0f;
+		box_pos.x += 0.5f;
+		box_pos.y += 0.5f;
+		box_pos.z += 0.5f;
 	}
 }
 
@@ -338,13 +325,12 @@ void main() {
 
 	vec2 pos = vec2(gl_FragCoord.x, gl_FragCoord.y);
 
-	const float scale = 2.0f;
 	float fov = scene.projection.x;
 	float near = scene.projection.y;
 	float far = scene.projection.z;
 
 	// set background color
-	vec4 pixel_color = vec4( scene.background.x, scene.background.y, scene.background.z, far );
+	vec4 pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
 
 	const float ray_retreat = 0.01f;
 
@@ -367,7 +353,7 @@ void main() {
 
 			vec4 color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
 			float max_dist = far;
-			float size = 64.0f * scale;
+			float size = 64.0f;
 
 			// iterate all chunks
 			for (int chunk = 0; chunk < chunk_count; chunk++) {
@@ -377,7 +363,7 @@ void main() {
 				vec3 chunk_pos = vec3((chunk % 3 + int(scene.chunk_offset.x)) % 3, 0, (chunk / 3 + int(scene.chunk_offset.z)) % 3);
 				//load_vec3(chunk_pos, chunks + chunk * 3);
 
-				chunk_pos = chunk_pos * size;
+				chunk_pos *= size;
 
 				vec3 bounds[2] = vec3[2](
 					chunk_pos,
@@ -391,9 +377,9 @@ void main() {
 					if (tmp_dist > -222.0f && tmp_dist < max_dist) {
 
 						// render the chunk
-						vec3 box_pos_t = vec3(-1,-1,-1);
+						vec3 box_pos_t = vec3(-1, -1, -1);
 						octree_get_pixel(chunk_pos, ray, chunk, max_dist, color, tmpmat, octree_depth, size, box_pos_t);
-						if (spp == 0 && box_pos_t.x != -1.0f ) {
+						if (spp == 0 && box_pos_t.x != -1.0f) {
 							box_pos = box_pos_t;
 							vmat = tmpmat;
 						}
@@ -443,20 +429,20 @@ void main() {
 			pixel_color = ray_pixel_color;
 		}
 		else {
-			float intensity = prevmat.x / 10.0f;
-			pixel_color.x = clamp((pixel_color.x + ray_pixel_color.x * intensity) / (1.0f + intensity), 0.0f, 255.0f);
-			pixel_color.y = clamp((pixel_color.y + ray_pixel_color.y * intensity) / (1.0f + intensity), 0.0f, 255.0f);
-			pixel_color.z = clamp((pixel_color.z + ray_pixel_color.z * intensity) / (1.0f + intensity), 0.0f, 255.0f);
+			float intensity = prevmat.x / 10.0f * 255.0f;
+			pixel_color.x = clamp((pixel_color.x + ray_pixel_color.x * intensity) / (1.0f + intensity), 0.0f, 1.0f);
+			pixel_color.y = clamp((pixel_color.y + ray_pixel_color.y * intensity) / (1.0f + intensity), 0.0f, 1.0f);
+			pixel_color.z = clamp((pixel_color.z + ray_pixel_color.z * intensity) / (1.0f + intensity), 0.0f, 1.0f);
 		}
 
-		if (vmat.x < 0.1f) break;
+		if (vmat.x < 0.001f) break;
 		else prevmat = vmat;
 		if (ray_pixel_color.w >= far) break;
-		Bounce(primary_ray, hit, box_pos, 1.0f);
+		Bounce(primary_ray, hit, box_pos, 0.5f);
 		ray = primary_ray;
 	}
 
 
 
-	outColor = vec4(pixel_color.x, pixel_color.y, pixel_color.z, clamp(pixel_color.w * 2.0f, 0.0f, 255.0f)) / 255.0f;
+	outColor = vec4(pixel_color.x, pixel_color.y, pixel_color.z, clamp(pixel_color.w / 255.0f * 2.0f, 0.0f, 1.0f));
 }
