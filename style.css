@@ -226,3 +226,15 @@ body {
     color: lightblue;
     font-family: Impact
 }
+
+#open {
+    position: absolute;
+    right: -200px;
+    top: 600px;
+}
+
+#save {
+    position: absolute;
+    right: -400px;
+    top: 600px;
+}

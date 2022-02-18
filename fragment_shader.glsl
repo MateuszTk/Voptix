@@ -360,7 +360,7 @@ void main() {
 
 				// read chunk offset from chunk array
 				//vec3((chunk % 3 + (int(scene.chunk_offset.x)) % 3 + 3) % 3, 0, (chunk / 3 + (int(scene.chunk_offset.z)) % 3 + 3) % 3);
-				vec3 chunk_pos = vec3((chunk % 3 + int(scene.chunk_offset.x)) % 3, 0, (chunk / 3 + int(scene.chunk_offset.z)) % 3);
+				vec3 chunk_pos = vec3((chunk % 3 + int(scene.chunk_offset.x)) % 3, (chunk / 9 + int(scene.chunk_offset.y)) % 3, (chunk / 3 + int(scene.chunk_offset.z)) % 3);
 				//load_vec3(chunk_pos, chunks + chunk * 3);
 
 				chunk_pos *= size;

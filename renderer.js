@@ -1,3 +1,5 @@
+var gl;
+
 
 function main() {
     const canvas = document.querySelector("#glCanvas");
@@ -10,7 +12,7 @@ function main() {
     }
 
     // Initialize the GL context
-    const gl = canvas.getContext("webgl2");
+    gl = canvas.getContext("webgl2");
 
     // Only continue if WebGL is available and working
     if (gl === null) {
@@ -47,9 +49,10 @@ const pixels = [];
 var textures = [];
 const chunk_map = new Map;
 
+const chunk_size = 299593 * 2;
+
 // vector representing where the camera is currently pointing
 var direction = glMatrix.vec3.create();
-
 const sensivity = 0.8;
 
 window.onload = main;
@@ -58,6 +61,96 @@ document.onmousemove = handleMouseMove;
 function handleMouseMove(event) {
     mouseX += event.movementX;
     mouseY += event.movementY;
+}
+
+function save(name) {
+
+    //first 4 bytes are the header describing the following chunk info length 
+    let header = new Uint32Array(1 + 3 * chunk_map.size);
+    header[0] = chunk_map.size;
+
+    let chunk_no = 1;
+    let continuous_data = [header];
+    chunk_map.forEach((chunk, posi) => {
+        const coord = posi.split(',').map((e) => parseInt(e));
+        header[chunk_no] = coord[0];
+        header[chunk_no + 1] = coord[1];
+        header[chunk_no + 2] = coord[2];
+        chunk_no += 3;
+        for (const levels of chunk) {
+            continuous_data.push(levels);
+        }
+    });
+
+    var a = document.createElement('a');
+    let blob = new Blob(continuous_data);
+    a.href = URL.createObjectURL(blob);
+    a.download = name + ".vx";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+function loadFile() {
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.vx';
+
+    input.onchange = e => {
+
+        var file = e.target.files[0];
+
+        var reader = new FileReader();
+        reader.readAsArrayBuffer(file);
+
+        reader.onload = readerEvent => {
+            //delete all old chunks
+            chunk_map.clear();
+            glMatrix.vec3.set(chunk_offset, 20, 0, 20);
+            pos = glMatrix.vec3.fromValues(0, 65, 0);
+            pixels.splice(0, pixels.length);
+
+            //load new chunks
+            let continuous_data = new Uint8Array(readerEvent.target.result);
+            let header_len = new Uint32Array(continuous_data.buffer, 0, 1);
+            let header = new Uint32Array(continuous_data.buffer, 4, header_len * 3);
+            console.log(header);
+
+            let offset = 4 + header_len * 4 * 3;
+            for (let c = 0; c < header_len; c++) {
+                let chunk = [];
+                let msize = size;
+                let layer_offset = 0;
+                for (let level = 0; level < 7; level++) {
+                    chunk.push(new Uint8Array(continuous_data.buffer, offset + 4 * c * chunk_size + layer_offset, msize * msize * msize * pixelsPerVoxel * 4));
+                    layer_offset += msize * msize * msize * pixelsPerVoxel * 4;
+                    msize /= 2;
+                }
+
+                chunk_map.set([header[c * 3 + 0], header[c * 3 + 1], header[c * 3 + 2]].join(','), chunk);
+            }
+
+            //place loaded chunks or restore missing chunks nearby
+            for (let x = 0; x < 3; x++) {
+                for (let z = 0; z < 3; z++) {
+                    let chunk = [];
+                    let msize = size;
+                    for (let level = 0; level < 7; level++) {
+                        chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
+                        msize /= 2;
+                    }
+                    pixels.push(chunk_map.get([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(',')));
+                }
+            }
+
+            for (let x = 0; x < 3; x++) {
+                for (let z = 0; z < 3; z++) {
+                    generate_chunk(chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1, gl, true, chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1);
+                }
+            }
+        }
+    }
+    input.click();
 }
 
 window.addEventListener("keydown", function (event) {
@@ -142,8 +235,6 @@ function send_chunk(i, gl) {
 
 function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     console.log("x" + x + " y" + y + " z" + z);
-    //let i = (x % 3) + (z % 3) * 3;
-    //pixels[i].fill(255, 0, 64 * 64 * 64 * 8);
 
     noise.seed(8888);//Math.random());
     const frequency = 2.0;
@@ -152,12 +243,7 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     let build_new = true;
     let i = (x % 3) + (z % 3) * 3;
     if (send) {
-        //save old chunk
-        let chunk = [];
-        for (let lv = 0; lv < 7; lv++)
-            chunk.push(new Uint8Array(pixels[(sendx % 3) + (sendz % 3) * 3][lv]));
-        chunk_map.set([sendx, sendy, sendz].join(','), chunk);
-        //console.log("saved");
+        //if chunk in this position was generated before, use it
         const svkey = [x, y, z];
         const sskey = svkey.join(',');
         if (chunk_map.has(sskey)) {
@@ -167,17 +253,23 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
             build_new = false;
         }
     }
+
     if (build_new) {
+        
+        let chunk = [];
+        for (let lv = 0; lv < 7; lv++)
+            chunk.push(new Uint8Array(pixels[i][lv]));
+        chunk_map.set([x, y, z].join(','), chunk);
+
+        for (let lv = 0; lv < 7; lv++) {
+            chunk[lv].fill(0, 0, chunk[lv].length);
+        }
+
+        pixels[i] = chunk_map.get([x, y, z].join(','));
+
         x *= 64;
         y *= 64;
         z *= 64;
-
-        
-        for (let lv = 0; lv < 7; lv++) {
-            pixels[i][lv].fill(0, 0, pixels[i][lv].length);
-        }
-
-
         for (let _x = 0; _x < 64; _x++) {
             for (let _z = 0; _z < 64; _z++) {
 
@@ -235,14 +327,17 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
 }
 
 function init(vsSource, fsSource, gl, canvas) {
-    for (let i = 0; i < 9; i++) {
-        let chunk = [];
-        let msize = size;
-        for (let level = 0; level < 7; level++) {
-            chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
-            msize /= 2;
+    for (let x = 0; x < 3; x++) {
+        for (let z = 0; z < 3; z++) {
+            let chunk = [];
+            let msize = size;
+            for (let level = 0; level < 7; level++) {
+                chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
+                msize /= 2;
+            }
+            chunk_map.set([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(','), chunk);
+            pixels.push(chunk_map.get([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(',')));
         }
-        pixels.push(chunk);
     }
 
     const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
@@ -306,25 +401,9 @@ function setElement(x, y, z, r, g, b, a, s, chunk, level, len) {
     pixels[chunk][level][ind + 2] = b;
     pixels[chunk][level][ind + 3] = a;
     pixels[chunk][level][ind + 4] = s;
-
 }
 
 function octree_set(x, y, z, r, g, b, a, s, chunk) {
-    /*pixels[chunk][6][0] = 255;
-    pixels[chunk][6][1] = 255;
-    pixels[chunk][6][2] = 255;
-    pixels[chunk][6][3] = 255;
-
-    pixels[chunk][6][4] = 0;
-    pixels[chunk][6][5] = 255;
-    pixels[chunk][6][6] = 0;
-    pixels[chunk][6][7] = 0;*/
-
-    //pixels[chunk][6][4] = 255;
-    //pixels[chunk][6][5] = 255;
-    //pixels[chunk][6][6] = 255;
-    //pixels[chunk][6][7] = 255;
-    // copy iterator mask
 
     // iterate until the mask is shifted to target (leaf) layer
     let xo = 0, yo = 0, zo = 0;
@@ -347,8 +426,6 @@ function octree_set(x, y, z, r, g, b, a, s, chunk) {
         pixels[chunk][6 - depth][ind + 1] = g;
         pixels[chunk][6 - depth][ind + 2] = b;
         pixels[chunk][6 - depth][ind + 4] = s;
-
-        //pixels[chunk][(2 * x + y * 2 * len + z * 2 * len * len) * 4 + 3] = 255;//|= 1 << octant;
 
         pow2 *= 2;
     }
