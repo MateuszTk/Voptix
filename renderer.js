@@ -520,31 +520,39 @@ function drawScene(gl, canvas, shaderProgram, time) {
         cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5);
         cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5);
         cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5);
-        const cx = Math.floor(cursor3D[0] / 64);
-        //const cy = Math.floor(cursor3D[1] / 64);
-        const cz = Math.floor(cursor3D[2] / 64);
-        cursor3D[0] %= 64;
-        cursor3D[1] %= 64;
-        cursor3D[2] %= 64;
-        let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-        if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
-            let r = brush.diameter / 2.0;
-            if (brush.diameter > 4) {
-                for (let x = -r; x < r; x++) {
-                    for (let y = -r; y < r; y++) {
-                        for (let z = -r; z < r; z++) {
-                            if (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))
-                                octree_set(cursor3D[0] + x, cursor3D[1] + y, cursor3D[2] + z, brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, chunkid);
+
+        let chunks2send = new Map;
+        let r = brush.diameter / 2.0;
+        if (brush.diameter > 4) {
+            for (let x = -r; x < r; x++) {
+                for (let y = -r; y < r; y++) {
+                    for (let z = -r; z < r; z++) {
+                        if (cursor3D[0] + x < 3 * 64 && cursor3D[2] + z < 3 * 64 && cursor3D[1] + y < 64 &&cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
+                            if (x * x + y * y + z * z < (r - 1.0) * (r - 1.0)) {
+                                let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * 64) / 64) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * 64) / 64) % 3) * 3;
+                                octree_set(Math.floor(cursor3D[0] + x) % 64, Math.floor(cursor3D[1] + y) % 64, Math.floor(cursor3D[2] + z) % 64, brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, chunkid);
+                                chunks2send.set(chunkid, 1);
+                            }
                         }
                     }
                 }
             }
-            else {
-                octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, chunkid);
-            }
-
-            send_chunk(chunkid, gl);
+            chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl); console.log(chunk) });
         }
+        else {
+            const cx = Math.floor(cursor3D[0] / 64);
+            //const cy = Math.floor(cursor3D[1] / 64);
+            const cz = Math.floor(cursor3D[2] / 64);
+            if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
+                cursor3D[0] %= 64;
+                cursor3D[1] %= 64;
+                cursor3D[2] %= 64;
+                let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
+                octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, chunkid);
+                send_chunk(chunkid, gl);
+            }
+        }
+
         paint = false;
     }
 

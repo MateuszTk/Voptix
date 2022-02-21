@@ -56,7 +56,7 @@ vec4 getVoxel(vec3 pos, float i, float level, int chunk) {
 struct Ray {
 	vec3 orig;
 	vec3 invdir;
-	int sign[3];
+	ivec3 sign;
 };
 
 struct Scene {
@@ -100,9 +100,7 @@ void load_ray(inout Ray ray, vec3 direction, vec3 origin) {
 	ray.invdir.x = 1.0f / direction.x;
 	ray.invdir.y = 1.0f / direction.y;
 	ray.invdir.z = 1.0f / direction.z;
-	ray.sign[0] = int(ray.invdir.x < 0.0f);
-	ray.sign[1] = int(ray.invdir.y < 0.0f);
-	ray.sign[2] = int(ray.invdir.z < 0.0f);
+	ray.sign = ivec3(int(ray.invdir.x < 0.0f), int(ray.invdir.y < 0.0f), int(ray.invdir.z < 0.0f));
 }
 
 // initialize ray object
@@ -130,9 +128,7 @@ void Bounce(inout Ray ray, vec3 hit, vec3 box_pos, float size) {
 	ray.invdir.x *= ((hit.x >= box_pos.x + size || hit.x <= box_pos.x - size) ? -1.0f : 1.0f);
 	ray.invdir.y *= ((hit.y >= box_pos.y + size || hit.y <= box_pos.y - size) ? -1.0f : 1.0f);
 	ray.invdir.z *= ((hit.z >= box_pos.z + size || hit.z <= box_pos.z - size) ? -1.0f : 1.0f);
-	ray.sign[0] = int(ray.invdir.x < 0.0f);
-	ray.sign[1] = int(ray.invdir.y < 0.0f);
-	ray.sign[2] = int(ray.invdir.z < 0.0f);
+	ray.sign = ivec3(int(ray.invdir.x < 0.0f), int(ray.invdir.y < 0.0f), int(ray.invdir.z < 0.0f));
 }
 
 // check is ray intersects with AABB, writes distance to `dist`
@@ -140,18 +136,18 @@ bool intersects(Ray r, vec3 bounds[2], inout float dist) {
 
 	float txmin, txmax, tymin, tymax, tzmin, tzmax;
 
-	txmin = (bounds[r.sign[0]].x - r.orig.x) * r.invdir.x;
-	txmax = (bounds[1 - r.sign[0]].x - r.orig.x) * r.invdir.x;
-	tymin = (bounds[r.sign[1]].y - r.orig.y) * r.invdir.y;
-	tymax = (bounds[1 - r.sign[1]].y - r.orig.y) * r.invdir.y;
+	txmin = (bounds[r.sign.x].x - r.orig.x) * r.invdir.x;
+	txmax = (bounds[1 - r.sign.x].x - r.orig.x) * r.invdir.x;
+	tymin = (bounds[r.sign.y].y - r.orig.y) * r.invdir.y;
+	tymax = (bounds[1 - r.sign.y].y - r.orig.y) * r.invdir.y;
 
 	if ((txmin > tymax) || (tymin > txmax)) return false;
 
 	txmin = max(txmin, tymin);
 	txmax = min(txmax, tymax);
 
-	tzmin = (bounds[r.sign[2]].z - r.orig.z) * r.invdir.z;
-	tzmax = (bounds[1 - r.sign[2]].z - r.orig.z) * r.invdir.z;
+	tzmin = (bounds[r.sign.z].z - r.orig.z) * r.invdir.z;
+	tzmax = (bounds[1 - r.sign.z].z - r.orig.z) * r.invdir.z;
 
 	dist = max(txmin, tzmin);
 
