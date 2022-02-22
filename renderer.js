@@ -40,7 +40,7 @@ var cursor = glMatrix.vec3.create();
 var angle = glMatrix.vec3.create();
 
 var cursor3D = glMatrix.vec3.create();
-var paint = false;
+var paint = 0;
 var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0};
 
 const pixelsPerVoxel = 2;
@@ -61,6 +61,18 @@ document.onmousemove = handleMouseMove;
 function handleMouseMove(event) {
     mouseX += event.movementX;
     mouseY += event.movementY;
+}
+
+document.onmousedown = handleMouseClick;
+function handleMouseClick(event) {
+    switch (event.button) {
+        case 0:
+            paint = 1;
+            break;
+        case 2:
+            paint = 2;
+            break;
+    }
 }
 
 function save(name) {
@@ -194,7 +206,7 @@ window.addEventListener("keydown", function (event) {
             break;
 
         case "Space":
-            paint = true;
+            paint = 1;
             break;
 
         case "Enter":
@@ -404,34 +416,53 @@ function setElement(x, y, z, r, g, b, a, s, chunk, level, len) {
 }
 
 function octree_set(x, y, z, r, g, b, a, s, chunk) {
+    if (a > 0) {
+        // iterate until the mask is shifted to target (leaf) layer
+        let xo = 0, yo = 0, zo = 0;
+        let pow2 = 1;
+        let csize = 64;
+        for (let depth = 0; depth < 6; depth++) {
+            let ind = ((xo >> (6 - depth)) + (yo >> (6 - depth)) * pow2 + (zo >> (6 - depth)) * pow2 * pow2) * 8;
 
-    // iterate until the mask is shifted to target (leaf) layer
-    let xo = 0, yo = 0, zo = 0;
-    let pow2 = 1;
-    let csize = 64;
-    for (let depth = 0; depth < 6; depth++) {
-        let ind = ((xo >> (6 - depth)) + (yo >> (6 - depth)) * pow2 + (zo >> (6 - depth)) * pow2 * pow2) * 8;
+            csize /= 2;
 
-        csize /= 2;
+            let oc = 0;
 
-        let oc = 0;
+            xo += (((x >> (5 - depth)) & 1) > 0) * csize;
+            yo += (((y >> (5 - depth)) & 1) > 0) * csize;
+            zo += (((z >> (5 - depth)) & 1) > 0) * csize;
+            oc = (((x >> (5 - depth)) & 1) * 1) + (((y >> (5 - depth)) & 1) * 2) + (((z >> (5 - depth)) & 1) * 4);
+            pixels[chunk][6 - depth][ind + 3] |= 1 << oc;
 
-        xo += (((x >> (5 - depth)) & 1 )> 0) * csize;
-        yo += (((y >> (5 - depth)) & 1 )> 0) * csize;
-        zo += (((z >> (5 - depth)) & 1 )> 0) * csize;
-        oc = (((x >> (5 - depth)) & 1) * 1) + (((y >> (5 - depth)) & 1) * 2) + (((z >> (5 - depth)) & 1) * 4);
-        pixels[chunk][6 - depth][ind + 3] |= 1 << oc;
+            pixels[chunk][6 - depth][ind] = r;
+            pixels[chunk][6 - depth][ind + 1] = g;
+            pixels[chunk][6 - depth][ind + 2] = b;
+            pixels[chunk][6 - depth][ind + 4] = s;
 
-        pixels[chunk][6 - depth][ind] = r;
-        pixels[chunk][6 - depth][ind + 1] = g;
-        pixels[chunk][6 - depth][ind + 2] = b;
-        pixels[chunk][6 - depth][ind + 4] = s;
+            pow2 *= 2;
+        }
+        setElement(x, y, z, r, g, b, a, s, chunk, 0, 64);
+    }
+    else {
+        setElement(x, y, z, r, g, b, 0, s, chunk, 0, 64);
+        let xo = x, yo = y, zo = z;
+        let pow2 = 32;
+        let cut_branches = true;
+        for (let depth = 0; depth < 6; depth++) {
+            
+            xo >>= 1;
+            yo >>= 1;
+            zo >>= 1;
+            oc = (((x >> depth) & 1) * 1) + (((y >> depth) & 1) * 2) + (((z >> depth) & 1) * 4);
 
-        pow2 *= 2;
+            let ind = (xo + yo * pow2 + zo * pow2 * pow2) * 8;
+            if (cut_branches)
+                pixels[chunk][depth + 1][ind + 3] &= ~(1 << oc);
+            if (pixels[chunk][depth + 1][ind + 3] != 0) cut_branches = false;
+            pow2 /= 2;
+        }
     }
 
-
-    setElement( x, y, z, r, g, b, a, s, chunk,0, 64);
 
 }
 
@@ -514,12 +545,19 @@ function drawScene(gl, canvas, shaderProgram, time) {
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    if (paint) {
+    if (paint > 0) {
         const pixel = new Uint8Array(4);
         gl.readPixels(canvas.width / 2, canvas.height / 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-        cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5);
-        cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5);
-        cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+        if (paint == 1) {
+            cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+            cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+            cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+        }
+        else {
+            cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 + 0.2)) - 0.5);
+            cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 + 0.2)) - 0.5);
+            cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 + 0.2)) - 0.5);
+        }
 
         let chunks2send = new Map;
         let r = brush.diameter / 2.0;
@@ -530,7 +568,7 @@ function drawScene(gl, canvas, shaderProgram, time) {
                         if (cursor3D[0] + x < 3 * 64 && cursor3D[2] + z < 3 * 64 && cursor3D[1] + y < 64 &&cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
                             if (x * x + y * y + z * z < (r - 1.0) * (r - 1.0)) {
                                 let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * 64) / 64) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * 64) / 64) % 3) * 3;
-                                octree_set(Math.floor(cursor3D[0] + x) % 64, Math.floor(cursor3D[1] + y) % 64, Math.floor(cursor3D[2] + z) % 64, brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, chunkid);
+                                octree_set(Math.floor(cursor3D[0] + x) % 64, Math.floor(cursor3D[1] + y) % 64, Math.floor(cursor3D[2] + z) % 64, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, chunkid);
                                 chunks2send.set(chunkid, 1);
                             }
                         }
@@ -548,12 +586,12 @@ function drawScene(gl, canvas, shaderProgram, time) {
                 cursor3D[1] %= 64;
                 cursor3D[2] %= 64;
                 let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, 255, brush.clarity, chunkid);
+                octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, chunkid);
                 send_chunk(chunkid, gl);
             }
         }
 
-        paint = false;
+        paint = 0;
     }
 
     window.requestAnimationFrame(function (timestamp) {
