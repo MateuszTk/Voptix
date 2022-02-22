@@ -174,6 +174,7 @@
                             brush.diameter = bs;
                         }
                         zaznaczenie.checked = false;
+                        brush.type = zaznaczenie.checked;
                         zaznaczenie.addEventListener('change', () => {
                             if (zaznaczenie.checked) {
                                 circle.style.borderRadius = (0).toString() + "%";
@@ -182,6 +183,7 @@
                             else {
                                 circle.style.borderRadius = (50).toString() + "%";
                             }
+                            brush.type = zaznaczenie.checked;
                         });
 
                         slider4.value = bs;
@@ -196,7 +198,6 @@
                         brush.diameter = bs;
                         output4.innerHTML = bs;
 
-
                     </script>
 
                 </div>
@@ -207,7 +208,7 @@
                     <button type="button" id="open" onclick="loadFile()">Open world</button>
                     <div class="malyedytor">SEED</div>
                     <div id="seedp"><input type="text" name="seed" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');"></div>
-                    <button type="button" id="applyseed" onclick="save('save')">Apply</button>
+                    <button type="button" id="applyseed" onclick="">Apply</button>
                 </div>
 
 

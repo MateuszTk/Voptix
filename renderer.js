@@ -41,7 +41,7 @@ var angle = glMatrix.vec3.create();
 
 var cursor3D = glMatrix.vec3.create();
 var paint = 0;
-var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0};
+var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, type: true};
 
 const pixelsPerVoxel = 2;
 const size = 64;
@@ -565,8 +565,8 @@ function drawScene(gl, canvas, shaderProgram, time) {
             for (let x = -r; x < r; x++) {
                 for (let y = -r; y < r; y++) {
                     for (let z = -r; z < r; z++) {
-                        if (cursor3D[0] + x < 3 * 64 && cursor3D[2] + z < 3 * 64 && cursor3D[1] + y < 64 &&cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
-                            if (x * x + y * y + z * z < (r - 1.0) * (r - 1.0)) {
+                        if (cursor3D[0] + x < 3 * 64 && cursor3D[2] + z < 3 * 64 && cursor3D[1] + y < 64 && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
+                            if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
                                 let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * 64) / 64) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * 64) / 64) % 3) * 3;
                                 octree_set(Math.floor(cursor3D[0] + x) % 64, Math.floor(cursor3D[1] + y) % 64, Math.floor(cursor3D[2] + z) % 64, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, chunkid);
                                 chunks2send.set(chunkid, 1);
