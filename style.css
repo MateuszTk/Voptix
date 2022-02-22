@@ -11,7 +11,7 @@ body {
 #canvas_container{
     position: absolute;
     border: dashed;
-    border-color: red;
+    border-color: lightblue;
 }
 
 .crosshair {
@@ -102,6 +102,18 @@ body {
     border-radius: 25px;
 }
 
+.slider6 {
+    -webkit-appearance: none; /* Override default CSS styles */
+    width: 200px;
+    height: 20px;
+    background: #ffffff;
+    outline: none;
+    opacity: 0.8; /* Set transparency (for mouse-over effects on hover) */
+    -webkit-transition: .0s; /* 0.2 seconds transition on hover */
+    transition: opacity .0s;
+    border-radius: 25px;
+}
+
 /* Mouse-over effects */
 .slider:hover {
     opacity: 10; /* Fully shown on mouse-over */
@@ -153,6 +165,15 @@ body {
     border-radius: 25px;
 }
 
+.slider6 {
+    -webkit-appearance: none;
+    width: 180px; /* Set a specific slider handle width */
+    height: 20px; /* Slider handle height */
+    background: #808080; /* Green background */
+    cursor: pointer; /* Cursor on hover */
+    border-radius: 25px;
+}
+
 #square {
     height: 200px;
     width: 200px;
@@ -182,8 +203,8 @@ body {
 
 .pole1 {
     position: absolute;
-    right: -600px;
-    top: 0px;
+    right: 15%;
+    top: 20px;
     border-style: solid;
     border-color: lightblue;
     height: 310px;
@@ -194,7 +215,15 @@ body {
 .suwaki2 {
     position: absolute;
     left: 33px;
-    top: 58%;
+    top: 40%;
+}
+
+#kwadratowypedzelid {
+    position: absolute;
+    left: 200px;
+    top: 52px;
+    height: 25px;
+    width: 25px;
 }
 
 #circle {
@@ -209,11 +238,11 @@ body {
 
 .pole2 {
     position: absolute;
-    right: -600px;
-    top: 350px;
+    right: 15%;
+    top: 360px;
     border-style: solid;
     border-color: lightblue;
-    height: 220px;
+    height: 250px;
     width: 540px;
     background-color: darkslategrey;
 }
@@ -229,12 +258,113 @@ body {
 
 #open {
     position: absolute;
-    right: -200px;
-    top: 600px;
+    left: 25%;
+    top: 300px;
+    border-style: solid;
+    border-color: blue;
+    height: 25px;
+    width: 300px;
+    background-color: deepskyblue;
+    border-radius: 10px;
+    font-family: Impact;
+    color: white;
+    font-size: 18px;
 }
 
 #save {
     position: absolute;
-    right: -400px;
-    top: 600px;
+    left: 25%;
+    top: 250px;
+    border-style: solid;
+    border-color: blue;
+    height: 25px;
+    width: 300px;
+    background-color: deepskyblue;
+    border-radius: 10px;
+    font-family: Impact;
+    color: white;
+    font-size: 18px;
 }
+
+#polowaprzewijana {
+    position: absolute;
+    overflow: auto;
+    border-style: solid;
+    border-color: lightblue;
+    background-color: dimgrey;
+    right: -900px;
+    top: 0px;
+    width: 800px;
+    bottom: 0px;
+}
+
+.Wrapper {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.pole3 {
+    position: absolute;
+    right: 15%;
+    top: 640px;
+    border-style: solid;
+    border-color: lightblue;
+    height: 420px;
+    width: 540px;
+    background-color: darkslategrey;
+}
+
+#seedp {
+    position: absolute;
+    left: 35%;
+    top: 130px;
+}
+
+.malyedytor {
+    position: absolute;
+    left: 49%;
+    top: 100px;
+    font-size: 20px;
+    color: white;
+    font-family: Impact
+}
+
+#applyseed {
+    position: absolute;
+    left: 61%;
+    top: 128px;
+    border-style: solid;
+    border-color: green;
+    height: 25px;
+    width: 50px;
+    background-color: greenyellow;
+    border-radius: 10px;
+}
+
+.pole4 {
+    position: absolute;
+    right: 15%;
+    top: 1090px;
+    border-style: solid;
+    border-color: lightblue;
+    height: 420px;
+    width: 540px;
+    background-color: darkslategrey;
+}
+
+.edytordlugi {
+    position: absolute;
+    left: 24%;
+    top: 5%;
+    font-size: 40px;
+    color: lightblue;
+    font-family: Impact
+}
+
+.suwaki3 {
+    position: absolute;
+    left: 33px;
+    top: 58%;
+}
+
