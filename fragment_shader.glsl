@@ -16,6 +16,8 @@ precision mediump sampler3D;
 #define ALPHA 3
 //#define CLARITY 0
 
+const float chunk_size = 64.0f;
+
 const int chunk_count = 9;
 
 out vec4 outColor;
@@ -308,6 +310,16 @@ void octree_get_pixel(vec3 xyzc, Ray ray, int chunk, inout float max_dist, inout
 	}
 }
 
+//AO test
+bool occlusion(ivec3 delta_pos, ivec3 box_pos, int scx, int scz) {
+	ivec3 test = box_pos + delta_pos;
+	if (test.y < 0 || test.y >= int(chunk_size)) return false;
+	vec3 pos = vec3(test % ivec3(chunk_size, chunk_size, chunk_size));
+	ivec3 chu = test / ivec3(chunk_size, chunk_size, chunk_size);
+	int chi = (chu.x + 40 - scx + 2) % 3 + ((chu.z + 40 - scz + 2) % 3) * 3;	
+	return (getVoxel(pos, 0.0f, 6.0f, chi).w > 0.0f);
+}
+
 void main() {
 
 	Scene scene = Scene(
@@ -349,7 +361,7 @@ void main() {
 
 			vec4 color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
 			float max_dist = far;
-			float size = 64.0f;
+			float size = chunk_size;
 
 			// iterate all chunks
 			for (int chunk = 0; chunk < chunk_count; chunk++) {
@@ -423,6 +435,78 @@ void main() {
 
 		if (bounces == 0) {
 			pixel_color = ray_pixel_color;
+
+			//AO
+			const float size = 0.5f;
+			if (ray_pixel_color.w < far) {
+				bool a = hit.x >= box_pos.x + size;
+				bool b = hit.x <= box_pos.x - size;
+				float shade = 0.0f;
+				if (a || b) {
+					int x = (a) ? 1 : -1;
+
+					for (int y = -1; y < 2; y++) {
+						for (int z = -1; z < 2; z++) {
+							if (!(y == 0 && z == 0) && occlusion(ivec3(x, y, z), ivec3(box_pos), int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
+								float bl = 0.0f;
+								if (abs(z * y) > 0) {
+									bl = (1.0f - sqrt(pow(box_pos.z + float(z) * 0.5f - hit.z, 2.0f) + pow(box_pos.y + float(y) * 0.5f - hit.y, 2.0f)));
+								}
+								else {
+									bl = (((y == 0) ? 0.0f : abs(box_pos.y - float(y) * 0.5f - hit.y))
+										+ ((z == 0) ? 0.0f : abs(box_pos.z - float(z) * 0.5f - hit.z)));
+								}
+								shade = max(bl, shade);
+							}
+						}
+					}
+				}
+				else {
+					a = hit.y >= box_pos.y + size;
+					b = hit.y <= box_pos.y - size;
+					if (a || b) {
+						int y = (a) ? 1 : -1;
+						for (int x = -1; x < 2; x++) {
+							for (int z = -1; z < 2; z++) {
+								if (!(x == 0 && z == 0) && occlusion(ivec3(x, y, z), ivec3(box_pos), int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
+									float bl = 0.0f;
+									if (abs(z * x) > 0) {
+										bl = (1.0f - sqrt(pow(box_pos.z + float(z) * 0.5f - hit.z, 2.0f) + pow(box_pos.x + float(x) * 0.5f - hit.x, 2.0f)));
+									}
+									else {
+										bl = (((x == 0) ? 0.0f : abs(box_pos.x - float(x) * 0.5f - hit.x))
+											+ ((z == 0) ? 0.0f : abs(box_pos.z - float(z) * 0.5f - hit.z)));
+									}
+									shade = max(bl, shade);
+								}
+							}
+						}
+					}
+					else {
+						a = hit.z >= box_pos.z + size;
+						b = hit.z <= box_pos.z - size;
+						if (a || b) {
+							int z = (a) ? 1 : -1;
+							for (int x = -1; x < 2; x++) {
+								for (int y = -1; y < 2; y++) {
+									if (!(y == 0 && x == 0) && occlusion(ivec3(x, y, z), ivec3(box_pos), int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
+										float bl = 0.0f;
+										if (abs(y * x) > 0) {
+											bl = (1.0f - sqrt(pow(box_pos.y + float(y) * 0.5f - hit.y, 2.0f) + pow(box_pos.x + float(x) * 0.5f - hit.x, 2.0f)));
+										}
+										else {
+											bl = (((y == 0) ? 0.0f : abs(box_pos.y - float(y) * 0.5f - hit.y))
+												+ ((x == 0) ? 0.0f : abs(box_pos.x - float(x) * 0.5f - hit.x)));
+										}
+										shade = max(bl, shade);
+									}
+								}
+							}
+						}
+					}
+				}
+				pixel_color = mix(pixel_color, vec4(0.0f, 0.0f, 0.0f, ray_pixel_color.w), pow(shade, 2.0f) * 0.1f);
+			}
 		}
 		else {
 			float intensity = prevmat.x / 10.0f * 255.0f;
