@@ -227,8 +227,69 @@
         <input type="submit" value="Submit">
     </div>
         -->
+
+                <div class="pole5">
+                    <div class="edytordlugi">CONTROL SETTINGS</div>
+                    <div class="suwaki3">
+
+                        <font style="font-size: 30px; color: white; font-family: Impact">MOUSE SENSITIVITY</font>
+                        <input type="range" min="1" max="100" value="50" class="slider5" id="MSRange">
+                        <span style="font-size: 30px; color: white; font-family: Impact" id="demo5"></span>
+                        <br>
+
+                        <font style="font-size: 30px; color: white; font-family: Impact">FLYING SPEED</font>
+                        <input type="range" min="1" max="100" value="50" class="slider5" id="FSRange" style="position:absolute; left: 235px; top: 42px" ;>
+                        <span style="font-size: 30px; color: white; font-family: Impact; position:absolute; left: 424px; top: 42px" ;" id="demo6"></span>
+
+                    </div>
+
+                    <div class="malyedytor" style="position:absolute; left: 240px; top: 220px">
+                        CONTROLS
+                    </div>
+
+                    
+
+                    <div class="tabelas">
+                        Place voxel &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; LMB
+                        <br>
+                        Remove voxel &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; RMB
+                        <br>
+                        Sample color &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; MMB
+                        <br>
+                        Show pointer &emsp; &emsp; &emsp; &emsp; &emsp; &ensp; Enter/Esc
+                        <br>
+                        Move &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; &ensp; W/A/S/D/Q/E
+                    </div>
+
+                    <script>
+
+                        var ms = 50;
+                        var fs = 50;
+
+                        var slider5 = document.getElementById("MSRange");
+                        var output5 = document.getElementById("demo5");
+                        output5.innerHTML = slider5.value; // Display the default slider value
+                        slider5.oninput = function () {
+                            output5.innerHTML = slider5.value;
+
+                        }
+                        slider5.value = ms;
+                        output5.innerHTML = ms;
+
+                        var slider6 = document.getElementById("FSRange");
+                        var output6 = document.getElementById("demo6");
+                        output6.innerHTML = slider6.value; // Display the default slider value
+                        slider6.oninput = function () {
+                            output6.innerHTML = slider6.value;
+
+                        }
+                        slider6.value = fs;
+                        output6.innerHTML = fs;
+
+                    </script>
+
+                </div>
             </div>
-        </div>
     </div>
 </body>
 

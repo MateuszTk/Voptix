@@ -325,7 +325,7 @@ body {
     position: absolute;
     left: 49%;
     top: 100px;
-    font-size: 20px;
+    font-size: 25px;
     color: white;
     font-family: Impact
 }
@@ -365,6 +365,28 @@ body {
 .suwaki3 {
     position: absolute;
     left: 33px;
-    top: 58%;
+    top: 100px;
+}
+
+.pole5 {
+    position: absolute;
+    right: 15%;
+    top: 1090px;
+    border-style: solid;
+    border-color: lightblue;
+    height: 520px;
+    width: 540px;
+    background-color: darkslategrey;
+}
+
+
+
+.tabelas {
+    position: absolute;
+    left: 80px;
+    top: 300px;
+    font-size: 25px;
+    color: white;
+    font-family: Impact
 }
 
