@@ -1,8 +1,8 @@
 var gl;
 
-
 function main() {
     const canvas = document.querySelector("#glCanvas");
+    canvas.onmousedown = handleCanvasClick;
     let sw = localStorage.getItem("swidth");
     let sh = localStorage.getItem("sheight");
 
@@ -51,27 +51,58 @@ const chunk_map = new Map;
 
 const chunk_size = 299593 * 2;
 
+var locked = false;
+var brush_lock = true;
+
 // vector representing where the camera is currently pointing
 var direction = glMatrix.vec3.create();
 const sensivity = 0.8;
 
 window.onload = main;
 
+document.addEventListener('pointerlockchange', lockChange, false);
+document.addEventListener('mozpointerlockchange', lockChange, false);
+
+function handleCanvasClick(event) {
+    document.body.requestPointerLock();
+    locked = true;
+    brush_lock = true;
+}
+
+function lockChange() {
+    if (!(document.pointerLockElement === document.body || document.mozPointerLockElement === document.body)) {
+        locked = false;
+        console.log('The pointer lock status is now unlocked');
+    }
+}
+
 document.onmousemove = handleMouseMove;
 function handleMouseMove(event) {
-    mouseX += event.movementX;
-    mouseY += event.movementY;
+    if (locked) {
+        mouseX += event.movementX;
+        mouseY += event.movementY;
+    }
 }
 
 document.onmousedown = handleMouseClick;
 function handleMouseClick(event) {
-    switch (event.button) {
-        case 0:
-            paint = 1;
-            break;
-        case 2:
-            paint = 2;
-            break;
+    if (locked) {
+        if (!brush_lock) {
+            switch (event.button) {
+                case 0:
+                    paint = 1;
+                    break;
+                //sample color
+                case 1:
+                    event.preventDefault();
+                    paint = 3;
+                    break;
+                case 2:
+                    paint = 2;
+                    break;
+            }
+        }
+        else brush_lock = false;
     }
 }
 
@@ -166,55 +197,56 @@ function loadFile() {
 }
 
 window.addEventListener("keydown", function (event) {
+    if (locked) {
+        glMatrix.vec3.normalize(direction, direction);
 
-    glMatrix.vec3.normalize(direction, direction);
+        var speed = 1;
+        var vec = glMatrix.vec3.create();
+        var vec_up = glMatrix.vec3.create();
+        vec_up[1] = 1;
+        switch (event.code) {
+            case "KeyW":
+            case "ArrowUp":
+                glMatrix.vec3.scaleAndAdd(pos, pos, direction, speed);
+                break;
 
-    var speed = 1;
-    var vec = glMatrix.vec3.create();
-    var vec_up = glMatrix.vec3.create();
-    vec_up[1] = 1;
-    switch (event.code) {
-        case "KeyW":
-        case "ArrowUp":
-            glMatrix.vec3.scaleAndAdd(pos, pos, direction, speed);
-            break;
+            case "KeyS":
+            case "ArrowDown":
+                glMatrix.vec3.scaleAndAdd(pos, pos, direction, -speed);
+                break;
 
-        case "KeyS":
-        case "ArrowDown":
-            glMatrix.vec3.scaleAndAdd(pos, pos, direction, -speed);
-            break;
+            case "KeyA":
+            case "ArrowLeft":
+                glMatrix.vec3.cross(vec, direction, vec_up);
+                glMatrix.vec3.normalize(vec, vec);
+                glMatrix.vec3.scaleAndAdd(pos, pos, vec, speed);
+                break;
 
-        case "KeyA":
-        case "ArrowLeft":
-            glMatrix.vec3.cross(vec, direction, vec_up);
-            glMatrix.vec3.normalize(vec, vec);
-            glMatrix.vec3.scaleAndAdd(pos, pos, vec, speed);
-            break;
+            case "KeyD":
+            case "ArrowRight":
+                glMatrix.vec3.cross(vec, direction, vec_up);
+                glMatrix.vec3.normalize(vec, vec);
+                glMatrix.vec3.scaleAndAdd(pos, pos, vec, -speed);
+                break;
 
-        case "KeyD":
-        case "ArrowRight":
-            glMatrix.vec3.cross(vec, direction, vec_up);
-            glMatrix.vec3.normalize(vec, vec);
-            glMatrix.vec3.scaleAndAdd(pos, pos, vec, -speed);
-            break;
+            case "KeyQ":
+                pos[1] -= speed;
+                break;
+            case "KeyE":
+                pos[1] += speed;
+                break;
 
-        case "KeyQ":
-            pos[1] -= speed;
-            break;
-        case "KeyE":
-            pos[1] += speed;
-            break;
+            case "Space":
+                paint = 1;
+                break;
 
-        case "Space":
-            paint = 1;
-            break;
+            case "Enter":
+                document.exitPointerLock();
+                break;
 
-        case "Enter":
-            document.body.requestPointerLock();
-            break;
-
-        default:
-            break;
+            default:
+                break;
+        }
     }
 
 }, true);
@@ -548,49 +580,56 @@ function drawScene(gl, canvas, shaderProgram, time) {
     if (paint > 0) {
         const pixel = new Uint8Array(4);
         gl.readPixels(canvas.width / 2, canvas.height / 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-        if (paint == 1) {
-            cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5);
-            cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5);
-            cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5);
-        }
-        else {
-            cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 + 0.2)) - 0.5);
-            cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 + 0.2)) - 0.5);
-            cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 + 0.2)) - 0.5);
+        if (paint == 3) {
+            brush.color_r = pixel[0];
+            brush.color_g = pixel[1];
+            brush.color_b = pixel[2];
         }
 
-        let chunks2send = new Map;
-        let r = brush.diameter / 2.0;
-        if (brush.diameter > 4) {
-            for (let x = -r; x < r; x++) {
-                for (let y = -r; y < r; y++) {
-                    for (let z = -r; z < r; z++) {
-                        if (cursor3D[0] + x < 3 * 64 && cursor3D[2] + z < 3 * 64 && cursor3D[1] + y < 64 && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
-                            if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
-                                let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * 64) / 64) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * 64) / 64) % 3) * 3;
-                                octree_set(Math.floor(cursor3D[0] + x) % 64, Math.floor(cursor3D[1] + y) % 64, Math.floor(cursor3D[2] + z) % 64, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, chunkid);
-                                chunks2send.set(chunkid, 1);
+        if (paint < 3) {
+            if (paint == 1) {
+                cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+                cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+                cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+            }
+            else {
+                cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 + 0.2)) - 0.5);
+                cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 + 0.2)) - 0.5);
+                cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 + 0.2)) - 0.5);
+            }
+
+            let chunks2send = new Map;
+            let r = brush.diameter / 2.0;
+            if (brush.diameter > 4) {
+                for (let x = -r; x < r; x++) {
+                    for (let y = -r; y < r; y++) {
+                        for (let z = -r; z < r; z++) {
+                            if (cursor3D[0] + x < 3 * 64 && cursor3D[2] + z < 3 * 64 && cursor3D[1] + y < 64 && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
+                                if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
+                                    let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * 64) / 64) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * 64) / 64) % 3) * 3;
+                                    octree_set(Math.floor(cursor3D[0] + x) % 64, Math.floor(cursor3D[1] + y) % 64, Math.floor(cursor3D[2] + z) % 64, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, chunkid);
+                                    chunks2send.set(chunkid, 1);
+                                }
                             }
                         }
                     }
                 }
+                chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl); console.log(chunk) });
             }
-            chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl); console.log(chunk) });
-        }
-        else {
-            const cx = Math.floor(cursor3D[0] / 64);
-            //const cy = Math.floor(cursor3D[1] / 64);
-            const cz = Math.floor(cursor3D[2] / 64);
-            if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
-                cursor3D[0] %= 64;
-                cursor3D[1] %= 64;
-                cursor3D[2] %= 64;
-                let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, chunkid);
-                send_chunk(chunkid, gl);
+            else {
+                const cx = Math.floor(cursor3D[0] / 64);
+                //const cy = Math.floor(cursor3D[1] / 64);
+                const cz = Math.floor(cursor3D[2] / 64);
+                if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
+                    cursor3D[0] %= 64;
+                    cursor3D[1] %= 64;
+                    cursor3D[2] %= 64;
+                    let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
+                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, chunkid);
+                    send_chunk(chunkid, gl);
+                }
             }
         }
-
         paint = 0;
     }
 
