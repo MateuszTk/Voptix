@@ -56,7 +56,8 @@ var brush_lock = true;
 
 // vector representing where the camera is currently pointing
 var direction = glMatrix.vec3.create();
-const sensivity = 0.8;
+var sensivity = 0.8;
+var speed = 1.0;
 
 window.onload = main;
 
@@ -200,7 +201,6 @@ window.addEventListener("keydown", function (event) {
     if (locked) {
         glMatrix.vec3.normalize(direction, direction);
 
-        var speed = 1;
         var vec = glMatrix.vec3.create();
         var vec_up = glMatrix.vec3.create();
         vec_up[1] = 1;
@@ -584,6 +584,8 @@ function drawScene(gl, canvas, shaderProgram, time) {
             brush.color_r = pixel[0];
             brush.color_g = pixel[1];
             brush.color_b = pixel[2];
+
+            updateSliders();
         }
 
         if (paint < 3) {

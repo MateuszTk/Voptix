@@ -56,7 +56,23 @@
                                     <img src="gora.jpg" width="200" height="200">
 
                                     <script>
-                                        var r = 255, g = 255, b = 255, c = 255;
+                                        function updateSliders() {
+                                            r = brush.color_r;
+                                            g = brush.color_g;
+                                            b = brush.color_b;
+
+                                            slider.value = r;
+                                            slider1.value = g;
+                                            slider2.value = b;
+
+                                            output.innerHTML = r;
+                                            output1.innerHTML = g;
+                                            output2.innerHTML = b;
+
+                                            square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
+                                        }
+
+                                        var r = 255, g = 255, b = 255, c = 0;
                                         var square = document.getElementById("square");
                                         var gora = document.getElementById("gora");
 
@@ -122,7 +138,7 @@
                                         output2.innerHTML = b;
                                         output3.innerHTML = c;
 
-
+                                        gora.style.opacity = c / 255;
                                         square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
                                         brush.color_r = r;
                                         brush.color_g = g;
@@ -272,20 +288,24 @@
                         output5.innerHTML = slider5.value; // Display the default slider value
                         slider5.oninput = function () {
                             output5.innerHTML = slider5.value;
-
+                            ms = slider5.value;
+                            sensivity = ms / 100;
                         }
                         slider5.value = ms;
                         output5.innerHTML = ms;
+                        sensivity = ms / 100;
 
                         var slider6 = document.getElementById("FSRange");
                         var output6 = document.getElementById("demo6");
                         output6.innerHTML = slider6.value; // Display the default slider value
                         slider6.oninput = function () {
                             output6.innerHTML = slider6.value;
-
+                            fs = slider6.value;
+                            speed = fs / 50;
                         }
                         slider6.value = fs;
                         output6.innerHTML = fs;
+                        speed = fs / 50;
 
                     </script>
 
