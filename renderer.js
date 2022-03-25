@@ -44,12 +44,17 @@ var paint = 0;
 var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, type: true};
 
 const pixelsPerVoxel = 2;
-const size = 64;
+const size = 128;
 const pixels = [];
 var textures = [];
 const chunk_map = new Map;
 
-const chunk_size = 299593 * 2;
+var fb_textures = [];
+var fb;
+var fb_pixels; //uint8array
+
+const octree_depth = 7;
+const chunk_size = ((1 - Math.pow(8, (octree_depth + 1))) / -7 ) * 2;
 
 var locked = false;
 var brush_lock = true;
@@ -165,7 +170,7 @@ function loadFile() {
                 let chunk = [];
                 let msize = size;
                 let layer_offset = 0;
-                for (let level = 0; level < 7; level++) {
+                for (let level = 0; level < octree_depth + 1; level++) {
                     chunk.push(new Uint8Array(continuous_data.buffer, offset + 4 * c * chunk_size + layer_offset, msize * msize * msize * pixelsPerVoxel * 4));
                     layer_offset += msize * msize * msize * pixelsPerVoxel * 4;
                     msize /= 2;
@@ -179,7 +184,7 @@ function loadFile() {
                 for (let z = 0; z < 3; z++) {
                     let chunk = [];
                     let msize = size;
-                    for (let level = 0; level < 7; level++) {
+                    for (let level = 0; level < octree_depth + 1; level++) {
                         chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
                         msize /= 2;
                     }
@@ -268,7 +273,7 @@ function send_chunk(i, gl) {
     gl.activeTexture(gl.TEXTURE0 + i);
     gl.bindTexture(gl.TEXTURE_3D, textures[i]);
     let msize = size;
-    for (let c = 0; c < 7; c++) {
+    for (let c = 0; c < octree_depth + 1; c++) {
         gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
             msize * 2, msize, msize, 0, srcFormat, srcType,
             pixels[i][c]);
@@ -282,8 +287,8 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
 
     noise.seed(8888);//Math.random());
     const frequency = 2.0;
-    const fx = 64.0 / frequency;
-    const fs = 128.0 / frequency;
+    const fx = size / frequency;
+    const fs = 2.0 * size / frequency;
     let build_new = true;
     let i = (x % 3) + (z % 3) * 3;
     if (send) {
@@ -301,26 +306,26 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     if (build_new) {
         
         let chunk = [];
-        for (let lv = 0; lv < 7; lv++)
+        for (let lv = 0; lv < octree_depth + 1; lv++)
             chunk.push(new Uint8Array(pixels[i][lv]));
         chunk_map.set([x, y, z].join(','), chunk);
 
-        for (let lv = 0; lv < 7; lv++) {
+        for (let lv = 0; lv < octree_depth + 1; lv++) {
             chunk[lv].fill(0, 0, chunk[lv].length);
         }
 
         pixels[i] = chunk_map.get([x, y, z].join(','));
 
-        x *= 64;
-        y *= 64;
-        z *= 64;
-        for (let _x = 0; _x < 64; _x++) {
-            for (let _z = 0; _z < 64; _z++) {
+        x *= size;
+        y *= size;
+        z *= size;
+        for (let _x = 0; _x < size; _x++) {
+            for (let _z = 0; _z < size; _z++) {
 
                 if (y < 128) {
                     let surface = noise.simplex2((x + _x) / fs, (z + _z) / fs) * 16 + 48;
 
-                    for (let _y = 0; _y < 64; _y++) {
+                    for (let _y = 0; _y < size; _y++) {
                         if (_y < surface) {
                             let value = noise.simplex3((x + _x) / fx, (y + _y) / fx, (z + _z) / fx) * 255;
                             let clp = clamp(value + 0, 0, 255);
@@ -340,25 +345,15 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
                             }
 
                             if (clp > 0)
-                                octree_set(_x, _y, _z, r, g, b, 255, 0, i);
+                                octree_set(_x, _y, _z, r, g, b, 255, 0, 0, i);
                             else if (_y < 1) {
                                 r = 0;
                                 b = 240;
                                 g = clamp((value + 255) / 2, 0, 240);
-                                octree_set(_x, _y, _z, r, g, b, 255, 8, i);
+                                octree_set(_x, _y, _z, r, g, b, 255, 20, 0, i);
                             }
 
                         }
-                    }
-                } else { // clouds
-                    for (let _y = 32; _y < 64; _y++) {
-                        let value = (noise.simplex3((x + _x) / 64, (y + _y) / 64, (z + _z) / 64, 6) * 255);
-                        let clp = clamp(value - 200, 0, 1) * 255;
-
-                        let r = value, g = value, b = value;
-
-                        if (clp > 0)
-                            octree_set(_x, _y, _z, r, g, b, 255, 0, i);
                     }
                 }
             }
@@ -375,7 +370,7 @@ function init(vsSource, fsSource, gl, canvas) {
         for (let z = 0; z < 3; z++) {
             let chunk = [];
             let msize = size;
-            for (let level = 0; level < 7; level++) {
+            for (let level = 0; level <= octree_depth; level++) {
                 chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
                 msize /= 2;
             }
@@ -392,6 +387,21 @@ function init(vsSource, fsSource, gl, canvas) {
             generate_chunk(chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1, gl, false, 0, 0, 0);
         }
     }
+
+    var textureLoc0 = gl.getUniformLocation(shaderProgram, "noise");
+    //pixels.length - texture unit number
+    gl.uniform1i(textureLoc0, pixels.length);
+    gl.activeTexture(gl.TEXTURE0 + pixels.length);
+    const texturez = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texturez);
+    var random_arr = new Uint8Array(canvas.width * canvas.height * 4);
+    for (let i = 0; i < canvas.width * canvas.height * 4; i++) {
+        random_arr[i] = Math.random() * 255;
+    }
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
+        canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+        random_arr);
+    gl.generateMipmap(gl.TEXTURE_2D);
 
     var textureLoc = gl.getUniformLocation(shaderProgram, "u_textures[0]");
     // Tell the shader to use texture units 0 to pixel.length
@@ -414,7 +424,7 @@ function init(vsSource, fsSource, gl, canvas) {
         gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.generateMipmap(gl.TEXTURE_3D);
         let msize = size / 2;
-        for (let c = 1; c < 7; c++) {
+        for (let c = 1; c <= octree_depth; c++) {
             gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
                 msize * 2, msize, msize, 0, srcFormat, srcType,
                 pixels[i][c]);
@@ -432,27 +442,139 @@ function init(vsSource, fsSource, gl, canvas) {
     // Enable the attribute
     gl.enableVertexAttribArray(coord);
 
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    fb_textures.push(texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    const texture1 = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    fb_textures.push(texture1);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    const texture2 = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture2);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    fb_textures.push(texture2);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, texture1, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, texture2, 0);
+
+    gl.drawBuffers([
+        gl.COLOR_ATTACHMENT0,
+        gl.COLOR_ATTACHMENT1,
+        gl.COLOR_ATTACHMENT2
+    ]);
+
+    var colorFS = `#version 300 es
+    precision mediump float;
+
+    uniform sampler2D color[3];
+    uniform vec2 screen_size;
+
+    out vec4 outColor;
+
+    void main() {
+        /*vec4 lightcoord = texture(color[1], gl_FragCoord.xy/screen_size);
+        vec4 light = vec4(0.0f);
+        const float samples = 20.0f; 
+        float cnt = 0.0f;
+        vec2 pos = vec2(0.0f);
+        for(pos.x = -samples; pos.x < samples; pos.x++){
+            for(pos.y = -samples; pos.y < samples; pos.y++){
+                vec4 t = texture(color[1], clamp((pos+gl_FragCoord.xy)/screen_size, 0.0f, 1.0f));
+                if(lightcoord.xyz == t.xyz){
+                    cnt++;
+                    light += texture(color[2], clamp((pos+gl_FragCoord.xy)/screen_size, 0.0f, 1.0f)) * 2.0f;
+                }
+            }
+        }
+        light /= vec4(cnt);
+        light += texture(color[0], gl_FragCoord.xy/screen_size);
+        clamp(light, 0.0f, 1.0f);
+        outColor = light;*/
+        outColor = texture(color[0], vec2(gl_FragCoord.x/screen_size.x, gl_FragCoord.y/screen_size.y));//
+    }
+    `;
+    const canvasShaderProgram = initShaderProgram(gl, vsSource, colorFS);
+    initBuffers(gl);
+    const colorLoc = gl.getUniformLocation(canvasShaderProgram, "color[0]");
+    gl.uniform1iv(colorLoc, [0,1,2]);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[1]);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
+
+    const location = gl.getUniformLocation(canvasShaderProgram, 'screen_size');
+    gl.uniform2f(location, canvas.width, canvas.height);
+
+    fb_pixels = new Uint8Array(4 * canvas.width * canvas.height);
+
     //start render loop
     window.requestAnimationFrame(function (timestamp) {
-        drawScene(gl, canvas, shaderProgram, 0.0);
+        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, 0.0);
     });
 }
 
-function setElement(x, y, z, r, g, b, a, s, chunk, level, len) {
+function setElement(x, y, z, r, g, b, a, s, e, chunk, level, len) {
     let ind = (x + y * len + z * len * len) * 8;
     pixels[chunk][level][ind] = r;
     pixels[chunk][level][ind + 1] = g;
     pixels[chunk][level][ind + 2] = b;
     pixels[chunk][level][ind + 3] = a;
-    pixels[chunk][level][ind + 4] = s;
+    pixels[chunk][level][ind + 4] = (s & 0b11110000) + (e & 0b00001111);
 }
 
-function octree_set(x, y, z, r, g, b, a, s, chunk) {
+//color 655
+function setElementEmission(x, y, z, r, g, b, chunk, level, len) {
+    r *= 2.0;
+    g *= 2.0;
+    b *= 2.0;
+    let intensity = 64.0;
+    let ind = (x + y * len + z * len * len) * 8;
+    let or = pixels[chunk][level][ind + 5];//((pixels[chunk][level][ind + 6] & 252) * 255.0 / 252.0);//0b11111100;
+    let og = pixels[chunk][level][ind + 6]; //(((pixels[chunk][level][ind + 6] << 6) & 0b11000000) + ((pixels[chunk][level][ind + 7] & 0b11100000) >> 2) * 255 / 248.0);//0b11111000;
+    let ob = pixels[chunk][level][ind + 7];
+    /*or = Math.floor(clamp((r + or * (intensity - 1.0)) / intensity, 0.0, 255.0));
+    og = Math.floor(clamp((g + og * (intensity - 1.0)) / intensity, 0.0, 255.0));
+    ob = Math.floor(clamp((b + ob * (intensity - 1.0)) / intensity, 0.0, 255.0));
+
+    pixels[chunk][level][ind + 5] = or;
+    pixels[chunk][level][ind + 6] = og;//(or & 0b11111100) + (og >> 6);
+    pixels[chunk][level][ind + 7] = ob;//((og & 0b00111000) << 2) + (ob >> 3);*/
+
+    //or = Math.floor(clamp((r + or * (intensity - 1.0)) / intensity, 0.0, 255.0));
+    //og = Math.floor(clamp((g + og * (intensity - 1.0)) / intensity, 0.0, 255.0));
+    //ob = Math.floor(clamp((b + ob * (intensity - 1.0)) / intensity, 0.0, 255.0));
+
+    pixels[chunk][level][ind + 5] += Math.floor((r - or) / intensity);
+    pixels[chunk][level][ind + 6] += Math.floor((g - og) / intensity);
+    pixels[chunk][level][ind + 7] += Math.floor((b - ob) / intensity);
+}
+
+function octree_set(x, y, z, r, g, b, a, s, e, chunk) {
     if (a > 0) {
         // iterate until the mask is shifted to target (leaf) layer
         let xo = 0, yo = 0, zo = 0;
         let pow2 = 1;
-        let csize = 64;
+        let csize = size;
         for (let depth = 0; depth < 6; depth++) {
             let ind = ((xo >> (6 - depth)) + (yo >> (6 - depth)) * pow2 + (zo >> (6 - depth)) * pow2 * pow2) * 8;
 
@@ -466,19 +588,18 @@ function octree_set(x, y, z, r, g, b, a, s, chunk) {
             oc = (((x >> (5 - depth)) & 1) * 1) + (((y >> (5 - depth)) & 1) * 2) + (((z >> (5 - depth)) & 1) * 4);
             pixels[chunk][6 - depth][ind + 3] |= 1 << oc;
 
-            pixels[chunk][6 - depth][ind] = r;
-            pixels[chunk][6 - depth][ind + 1] = g;
-            pixels[chunk][6 - depth][ind + 2] = b;
-            pixels[chunk][6 - depth][ind + 4] = s;
+            //pixels[chunk][6 - depth][ind] = r;
+            //pixels[chunk][6 - depth][ind + 1] = g;
+            //pixels[chunk][6 - depth][ind + 2] = b;
 
             pow2 *= 2;
         }
-        setElement(x, y, z, r, g, b, a, s, chunk, 0, 64);
+        setElement(x, y, z, r, g, b, a, s, e, chunk, 0, size);
     }
     else {
-        setElement(x, y, z, r, g, b, 0, s, chunk, 0, 64);
+        setElement(x, y, z, r, g, b, 0, s, e, chunk, 0, size);
         let xo = x, yo = y, zo = z;
-        let pow2 = 32;
+        let pow2 = 0.5 * size;
         let cut_branches = true;
         for (let depth = 0; depth < 6; depth++) {
             
@@ -525,29 +646,29 @@ function updateCamera(gl) {
     direction[1] = -Math.sin(y);
     direction[2] = Math.sin(x) * Math.cos(y);
 
-    if (pos[0] > 32) {
-        pos[0] -= 64;
+    if (pos[0] > 0.5 * size) {
+        pos[0] -= size;
         for (let z = 0; z < 3; z++)
             generate_chunk(chunk_offset[0] + 2, chunk_offset[1], chunk_offset[2] + z - 1, gl, true, chunk_offset[0] - 1, chunk_offset[1], chunk_offset[2] + z - 1);
         chunk_offset[0]++;
     }
 
-    if (pos[2] > 32) {
-        pos[2] -= 64;
+    if (pos[2] > 0.5 * size) {
+        pos[2] -= size;
         for (let x = 0; x < 3; x++)
             generate_chunk(chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] + 2, gl, true, chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] - 1);
         chunk_offset[2]++;
     }
-    
-    if (pos[0] < -32) {
-        pos[0] += 64;
+
+    if (pos[0] < - 0.5 * size) {
+        pos[0] += size;
         for (let z = 0; z < 3; z++)
             generate_chunk(chunk_offset[0] - 2, chunk_offset[1], chunk_offset[2] + z - 1, gl, true, chunk_offset[0] + 1, chunk_offset[1], chunk_offset[2] + z - 1);
         chunk_offset[0]--;
     }
 
-    if (pos[2] < -32) {
-        pos[2] += 64;
+    if (pos[2] < - 0.5 * size) {
+        pos[2] += size;
         for (let x = 0; x < 3; x++)
             generate_chunk(chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] - 2, gl, true, chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] + 1);
         chunk_offset[2]--;
@@ -555,19 +676,34 @@ function updateCamera(gl) {
 }
 var wait = 0;
 var fps_time = 0;
-function drawScene(gl, canvas, shaderProgram, time) {
+var pixel = new Uint8Array(4);
+var chunk_id_map = [0, 1, 2,
+    3, 4, 5,
+    6, 7, 8];
+
+function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, time) {
     updateCamera(gl);
     const scene = [
-        pos[0] + 64.0 + 32.0, pos[1], pos[2] + 64.0 + 32.0,
+        pos[0] + 1.5 * size, pos[1], pos[2] + 1.5 * size,
         rotation[0], rotation[1], 0.0,
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],
-        canvas.width, canvas.height, 0.0,
+        canvas.width, canvas.height, 255,//Math.random() * 255,
         3.0 / 255.0, 219.0 / 255.0, 252.0 / 255.0, //background
         1.2, 0.01, 100000.0 //projection (fov near far)
     ];
+    gl.useProgram(shaderProgram);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
 
     var location = gl.getUniformLocation(shaderProgram, 'scene_data');
     gl.uniform3fv(location, scene);
+
+    for (let x = 0; x < 3; x++) {
+        for (let z = 0; z < 3; z++) {
+            chunk_id_map[x + z * 3] = (x + chunk_offset[0] + 2) % 3 + ((z + chunk_offset[2] + 2) % 3) * 3;
+        }
+    }
+    var map_location = gl.getUniformLocation(shaderProgram, 'chunk_map');
+    gl.uniform3iv(map_location, chunk_id_map);
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
 
@@ -576,10 +712,45 @@ function drawScene(gl, canvas, shaderProgram, time) {
     gl.viewport(0, 0, canvas.width, canvas.height);
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    
+    if (paint > 0) {
+        gl.readPixels(canvas.width / 2, canvas.height / 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);       
+    }
+    //draw lightning data to canvas
+    /*gl.useProgram(canvasShaderProgram);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[1]);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);*/
+    //gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, fb_pixels);
+
+    //draw to canvas
+    gl.useProgram(canvasShaderProgram);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+
+
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    
+    /*let t_len = canvas.width * canvas.height * 4;
+    for (let i = 0; i < t_len; i += 4) {
+        let x = fb_pixels[i];
+        let y = fb_pixels[i + 1];
+        let z = fb_pixels[i + 2];
+        let e = fb_pixels[i + 3];
+        if (x > 0 && y > 0 && z > 0) {
+            let chunkid = Math.floor((x + (chunk_offset[0] + 2) * 64) / 64) % 3 + Math.floor(((z + (chunk_offset[2] + 2) * 64) / 64) % 3) * 3;
+            setElementEmission(Math.floor(x) % 64, Math.floor(y) % 64, Math.floor(z) % 64, e & 0b11100000, (e << 3) & 0b11100000, (e << 6) & 0b11000000, chunkid, 0, 64);//e & 0b11100000, (e << 3) & 0b11100000, (e << 6) & 0b11000000, chunkid, 0, 64);
+            //setElementEmission(Math.floor(x) % 64, Math.floor(y) % 64, Math.floor(z) % 64, 255, 255, 255, chunkid, 0, 64);
+            //setElementEmission(Math.floor(x) % 64, Math.floor(y) % 64, Math.floor(z) % 64, 0, y * 4, 0, chunkid, 0, 64);
+        }
+    }*/
 
     if (paint > 0) {
-        const pixel = new Uint8Array(4);
-        gl.readPixels(canvas.width / 2, canvas.height / 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        
         if (paint == 3) {
             brush.color_r = pixel[0];
             brush.color_g = pixel[1];
@@ -590,14 +761,14 @@ function drawScene(gl, canvas, shaderProgram, time) {
 
         if (paint < 3) {
             if (paint == 1) {
-                cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+                cursor3D[0] = Math.round((pos[0] + 1.5 * size + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5);
                 cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5);
-                cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+                cursor3D[2] = Math.round((pos[2] + 1.5 * size + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5);
             }
             else {
-                cursor3D[0] = Math.round((pos[0] + 64.0 + 32.0 + direction[0] * (pixel[3] / 2.0 + 0.2)) - 0.5);
+                cursor3D[0] = Math.round((pos[0] + 1.5 * size + direction[0] * (pixel[3] / 2.0 + 0.2)) - 0.5);
                 cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 + 0.2)) - 0.5);
-                cursor3D[2] = Math.round((pos[2] + 64.0 + 32.0 + direction[2] * (pixel[3] / 2.0 + 0.2)) - 0.5);
+                cursor3D[2] = Math.round((pos[2] + 1.5 * size + direction[2] * (pixel[3] / 2.0 + 0.2)) - 0.5);
             }
 
             let chunks2send = new Map;
@@ -606,10 +777,10 @@ function drawScene(gl, canvas, shaderProgram, time) {
                 for (let x = -r; x < r; x++) {
                     for (let y = -r; y < r; y++) {
                         for (let z = -r; z < r; z++) {
-                            if (cursor3D[0] + x < 3 * 64 && cursor3D[2] + z < 3 * 64 && cursor3D[1] + y < 64 && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
+                            if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
                                 if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
-                                    let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * 64) / 64) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * 64) / 64) % 3) * 3;
-                                    octree_set(Math.floor(cursor3D[0] + x) % 64, Math.floor(cursor3D[1] + y) % 64, Math.floor(cursor3D[2] + z) % 64, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, chunkid);
+                                    let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
+                                    octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, 0, chunkid);
                                     chunks2send.set(chunkid, 1);
                                 }
                             }
@@ -619,15 +790,15 @@ function drawScene(gl, canvas, shaderProgram, time) {
                 chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl); console.log(chunk) });
             }
             else {
-                const cx = Math.floor(cursor3D[0] / 64);
+                const cx = Math.floor(cursor3D[0] / size);
                 //const cy = Math.floor(cursor3D[1] / 64);
-                const cz = Math.floor(cursor3D[2] / 64);
+                const cz = Math.floor(cursor3D[2] / size);
                 if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
-                    cursor3D[0] %= 64;
-                    cursor3D[1] %= 64;
-                    cursor3D[2] %= 64;
+                    cursor3D[0] %= size;
+                    cursor3D[1] %= size;
+                    cursor3D[2] %= size;
                     let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, chunkid);
+                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, 0, chunkid);
                     send_chunk(chunkid, gl);
                 }
             }
@@ -644,7 +815,7 @@ function drawScene(gl, canvas, shaderProgram, time) {
         else
             fps_time += timestamp - time;
         wait++;
-        drawScene(gl, canvas, shaderProgram, timestamp);
+        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, timestamp);
     });
 }
 
