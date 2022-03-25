@@ -489,6 +489,8 @@ void main() {
 	pixel_color = clamp(pixel_color, 0.0f, 1.0f);
 	pixel_color.w = w;
 	outColor[0] = vec4(pixel_color.x, pixel_color.y, pixel_color.z, clamp(pixel_color.w / 255.0f * 2.0f, 0.0f, 1.0f));
+	outColor[1] = vec4(1.0f);
+	outColor[2] = vec4(1.0f);
 	//0b11100000 0b00011100
 	//vec4 outColorValue = vec4(floor(prim_box_pos.x), floor(prim_box_pos.y), floor(prim_box_pos.z), (int(illumination.x * 255.0f) & 224) + ((int(illumination.y * 255.0f) >> 3) & 28) + (int(illumination.z * 255.0f) >> 6));
 	//outColor[1] = outColorValue / 255.0f;//vec4(prim_box_pos.x, illumination.y, illumination.z, illumination.z);//
