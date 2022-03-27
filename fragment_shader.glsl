@@ -28,6 +28,8 @@ vec4 getVoxel(ivec3 pos, int i, int level) {
 	int chunk = chunk_map[chu.z][chu.x];
 	pos = pos % chunk_size;
 	pos.x = pos.x * 2 + i;
+	//pos /= int(pow(2.0f, float(level)));
+	//pos = pos % (chunk_size / int(pow(2.0f, float(level))));
 
 	vec4 fvoxel;
 	if (chunk == 0)
@@ -149,31 +151,15 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 
 	ivec3 testPos = ivec3(ray.orig);
 
-	if (ray.dir.x < 0.0f) {
-		vStep.x = -1;
-		rayLength1D.x = (ray.orig.x - float(testPos.x)) * unitStepSize.x;
-	}
-	else {
-		vStep.x = 1;
-		rayLength1D.x = (float(testPos.x + 1) - ray.orig.x) * unitStepSize.x;
-	}
-
-	if (ray.dir.y < 0.0f) {
-		vStep.y = -1;
-		rayLength1D.y = (ray.orig.y - float(testPos.y)) * unitStepSize.y;
-	}
-	else {
-		vStep.y = 1;
-		rayLength1D.y = (float(testPos.y + 1) - ray.orig.y) * unitStepSize.y;
-	}
-
-	if (ray.dir.z < 0.0f) {
-		vStep.z = -1;
-		rayLength1D.z = (ray.orig.z - float(testPos.z)) * unitStepSize.z;
-	}
-	else {
-		vStep.z = 1;
-		rayLength1D.z = (float(testPos.z + 1) - ray.orig.z) * unitStepSize.z;
+	for (int i = 0; i < 3; i++) {
+		if (ndir[i] < 0.0f) {
+			vStep[i] = -1;
+			rayLength1D[i] = (ray.orig[i] - float(testPos[i])) * unitStepSize[i];
+		}
+		else {
+			vStep[i] = 1;
+			rayLength1D[i] = (float(testPos[i] + 1) - ray.orig[i]) * unitStepSize[i];
+		}
 	}
 
 	float dist = 0.0f;

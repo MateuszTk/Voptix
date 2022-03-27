@@ -575,22 +575,22 @@ function octree_set(x, y, z, r, g, b, a, s, e, chunk) {
         let xo = 0, yo = 0, zo = 0;
         let pow2 = 1;
         let csize = size;
-        for (let depth = 0; depth < 6; depth++) {
-            let ind = ((xo >> (6 - depth)) + (yo >> (6 - depth)) * pow2 + (zo >> (6 - depth)) * pow2 * pow2) * 8;
+        for (let depth = 0; depth < octree_depth; depth++) {
+            let ind = ((xo >> (octree_depth - depth)) + (yo >> (octree_depth - depth)) * pow2 + (zo >> (octree_depth - depth)) * pow2 * pow2) * 8;
 
             csize /= 2;
 
             let oc = 0;
 
-            xo += (((x >> (5 - depth)) & 1) > 0) * csize;
-            yo += (((y >> (5 - depth)) & 1) > 0) * csize;
-            zo += (((z >> (5 - depth)) & 1) > 0) * csize;
-            oc = (((x >> (5 - depth)) & 1) * 1) + (((y >> (5 - depth)) & 1) * 2) + (((z >> (5 - depth)) & 1) * 4);
-            pixels[chunk][6 - depth][ind + 3] |= 1 << oc;
+            xo += (((x >> (octree_depth - 1 - depth)) & 1) > 0) * csize;
+            yo += (((y >> (octree_depth - 1 - depth)) & 1) > 0) * csize;
+            zo += (((z >> (octree_depth - 1 - depth)) & 1) > 0) * csize;
+            oc = (((x >> (octree_depth - 1 - depth)) & 1) * 1) + (((y >> (octree_depth - 1 - depth)) & 1) * 2) + (((z >> (octree_depth - 1 - depth)) & 1) * 4);
+            pixels[chunk][octree_depth - depth][ind + 3] |= 1 << oc;
 
-            //pixels[chunk][6 - depth][ind] = r;
-            //pixels[chunk][6 - depth][ind + 1] = g;
-            //pixels[chunk][6 - depth][ind + 2] = b;
+            pixels[chunk][octree_depth - depth][ind] = r;
+            pixels[chunk][octree_depth - depth][ind + 1] = g;
+            pixels[chunk][octree_depth - depth][ind + 2] = b;
 
             pow2 *= 2;
         }
@@ -601,7 +601,7 @@ function octree_set(x, y, z, r, g, b, a, s, e, chunk) {
         let xo = x, yo = y, zo = z;
         let pow2 = 0.5 * size;
         let cut_branches = true;
-        for (let depth = 0; depth < 6; depth++) {
+        for (let depth = 0; depth < octree_depth; depth++) {
             
             xo >>= 1;
             yo >>= 1;
