@@ -505,7 +505,8 @@ function init(vsSource, fsSource, gl, canvas) {
         light += texture(color[0], gl_FragCoord.xy/screen_size);
         clamp(light, 0.0f, 1.0f);
         outColor = light;*/
-        outColor = texture(color[0], vec2(gl_FragCoord.x/screen_size.x, gl_FragCoord.y/screen_size.y));//
+        //vec4 col = texture(color[0], vec2(gl_FragCoord.x/screen_size.x, gl_FragCoord.y/screen_size.y));
+        outColor = texture(color[0], vec2(gl_FragCoord.x/screen_size.x, gl_FragCoord.y/screen_size.y));//mix(vec4(0.6f, 0.6f, 0.6f, 1.0f), col, pow(0.98f,col.w * 200.0f));//
     }
     `;
     const canvasShaderProgram = initShaderProgram(gl, vsSource, colorFS);

@@ -13,7 +13,7 @@ precision mediump sampler3D;
 #define ALPHA 3
 //#define CLARITY 0
 
-const int chunk_size = 128;
+const float chunk_size = 128.0f;
 
 const int chunk_count = 9;
 
@@ -23,33 +23,56 @@ uniform sampler2D noise;
 uniform vec3[6] scene_data;
 uniform ivec3[3] chunk_map;
 
-vec4 getVoxel(ivec3 pos, int i, int level) {
-	ivec3 chu = pos / chunk_size;
+vec4 getVoxel(vec3 fpos, int i, out vec3 mask) {
+	ivec3 pos = ivec3(fpos);
+	ivec3 chu = pos / int(chunk_size);
 	int chunk = chunk_map[chu.z][chu.x];
-	pos = pos % chunk_size;
+	pos = pos % int(chunk_size);
+	ivec3 l2_pos = pos / 4;
+	l2_pos.x *= 2;
 	pos.x = pos.x * 2 + i;
 	//pos /= int(pow(2.0f, float(level)));
 	//pos = pos % (chunk_size / int(pow(2.0f, float(level))));
 
 	vec4 fvoxel;
-	if (chunk == 0)
-		fvoxel = texelFetch(u_textures[0], pos, level);
-	else if (chunk == 1)
-		fvoxel = texelFetch(u_textures[1], pos, level);
-	else if (chunk == 2)
-		fvoxel = texelFetch(u_textures[2], pos, level);
-	else if (chunk == 3)
-		fvoxel = texelFetch(u_textures[3], pos, level);
-	else if (chunk == 4)
-		fvoxel = texelFetch(u_textures[4], pos, level);
-	else if (chunk == 5)
-		fvoxel = texelFetch(u_textures[5], pos, level);
-	else if (chunk == 6)
-		fvoxel = texelFetch(u_textures[6], pos, level);
-	else if (chunk == 7)
-		fvoxel = texelFetch(u_textures[7], pos, level);
-	else if (chunk == 8)
-		fvoxel = texelFetch(u_textures[8], pos, level);
+	if (chunk == 0) {
+		fvoxel = texelFetch(u_textures[0], pos, 0);
+		mask.y = texelFetch(u_textures[0], l2_pos, 2).w;
+	}
+	else if (chunk == 1) {
+		fvoxel = texelFetch(u_textures[1], pos, 0);
+		mask.y = texelFetch(u_textures[1], l2_pos, 2).w;
+	}
+	else if (chunk == 2) {
+		fvoxel = texelFetch(u_textures[2], pos, 0);
+		mask.y = texelFetch(u_textures[2], l2_pos, 2).w;
+	}
+	else if (chunk == 3) {
+		fvoxel = texelFetch(u_textures[3], pos, 0);
+		mask.y = texelFetch(u_textures[3], l2_pos, 2).w;
+	}
+	else if (chunk == 4) {
+		fvoxel = texelFetch(u_textures[4], pos, 0);
+		mask.y = texelFetch(u_textures[4], l2_pos, 2).w;
+	}
+	else if (chunk == 5) {
+		fvoxel = texelFetch(u_textures[5], pos, 0);
+		mask.y = texelFetch(u_textures[5], l2_pos, 2).w;
+	}
+	else if (chunk == 6) {
+		fvoxel = texelFetch(u_textures[6], pos, 0);
+		mask.y = texelFetch(u_textures[6], l2_pos, 2).w;
+	}
+	else if (chunk == 7) {
+		fvoxel = texelFetch(u_textures[7], pos, 0);
+		mask.y = texelFetch(u_textures[7], l2_pos, 2).w;
+	}
+	else if (chunk == 8) {
+		fvoxel = texelFetch(u_textures[8], pos, 0);
+		mask.y = texelFetch(u_textures[8], l2_pos, 2).w;
+	}
+
+	mask.x = fvoxel.w;
 
 	return fvoxel;
 }
@@ -66,14 +89,6 @@ struct Scene {
 	vec3 screen;
 	vec3 background;
 	vec3 projection;
-};
-
-struct OctreeData {
-	vec3 xyzo;
-	float csize;
-	float layerindex;
-	int oc;
-	int mask;
 };
 
 void load_direction(inout vec3 vec, vec3 rotation) {
@@ -138,64 +153,63 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 	vec3 ndir = ray.dir;
 
 	//length of vector to add for single step (hypotenuse)
-	vec3 unitStepSize = vec3(abs(1.0f / ndir.x), abs(1.0f / ndir.y), abs(1.0f / ndir.z));
-	/*vec3 unitStepSize = vec3(sqrt(1.0f + pow(ndir.z / ndir.x, 2.0f) + pow(ndir.y / ndir.x, 2.0f)),
-		sqrt(1.0f + pow(ndir.x / ndir.y, 2.0f) + pow(ndir.z / ndir.y, 2.0f)),
-		sqrt(1.0f + pow(ndir.x / ndir.z, 2.0f) + pow(ndir.y / ndir.z, 2.0f))
-	);*/
+	vec3 unitStepSize = 1.0f / abs(ndir);
 
+	vec3 testPos = ray.orig;
 
-	vec3 rayLength1D = vec3(0.0f);
+	//float(int(v) + 1) - it could be ceil but it glitches 
+	/*rayLength1D.x = (ndir.x < 0.0f) ? (ray.orig.x - floor(ray.orig.x)) * unitStepSize.x :
+		(float(int(ray.orig.x) + 1) - ray.orig.x) * unitStepSize.x;
+	rayLength1D.y = (ndir.y < 0.0f) ? (ray.orig.y - floor(ray.orig.y)) * unitStepSize.y :
+		(float(int(ray.orig.y) + 1) - ray.orig.y) * unitStepSize.y;
+	rayLength1D.z = (ndir.z < 0.0f) ? (ray.orig.z - floor(ray.orig.z)) * unitStepSize.z :
+		(float(int(ray.orig.z) + 1) - ray.orig.z) * unitStepSize.z;*/
 
-	ivec3 vStep = ivec3(1);
+	float cellSize = 1.0f;
+	vec3 layer_mask = vec3(0.0f);
 
-	ivec3 testPos = ivec3(ray.orig);
+	bvec3 comp = lessThan(ndir, vec3(0.0f));
+	vec3 rayLength1D = mix(floor(ray.orig) + cellSize - ray.orig, ray.orig - floor(ray.orig), comp) * unitStepSize;
 
-	for (int i = 0; i < 3; i++) {
-		if (ndir[i] < 0.0f) {
-			vStep[i] = -1;
-			rayLength1D[i] = (ray.orig[i] - float(testPos[i])) * unitStepSize[i];
-		}
-		else {
-			vStep[i] = 1;
-			rayLength1D[i] = (float(testPos[i] + 1) - ray.orig[i]) * unitStepSize[i];
-		}
-	}
+	vec3 nextrayLength1D = vec3(0.0f);
+	
+	vec3 pos_floor;
 
-	float dist = 0.0f;
+	float dist = 0.0f;;
 	bool vHit = false;
 	while (!vHit && dist < max_dist) {
-		if (rayLength1D.x < rayLength1D.y && rayLength1D.x < rayLength1D.z) {
-			testPos.x += vStep.x;
-			dist = rayLength1D.x;
-			rayLength1D.x += unitStepSize.x;
-		}
-		else {
-			if (rayLength1D.y < rayLength1D.z) {
-				testPos.y += vStep.y;
-				dist = rayLength1D.y;
-				rayLength1D.y += unitStepSize.y;
-			}
-			else {
-				testPos.z += vStep.z;
-				dist = rayLength1D.z;
-				rayLength1D.z += unitStepSize.z;
-			}
-		}
 
-		if (testPos.x >= 0 && testPos.y >= 0 && testPos.z >= 0 && testPos.x < chunk_size * 3 && testPos.y < chunk_size && testPos.z < chunk_size * 3) {
-			if (getVoxel(testPos, 0, 0).w > 0.0f) {
+		//position of curently tested voxel
+		testPos = ray.orig + (ndir * (dist + 0.01f));
+	
+		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * 3.0f && testPos.y < chunk_size && testPos.z < chunk_size * 3.0f) {
+			getVoxel(testPos, 0, layer_mask);
+			if (layer_mask.x > 0.0f) {
+				//found intersection
 				vHit = true;
 			}
+			else if (layer_mask.y > 0.0f) {
+				//something may be nerby - increase accuracy
+				cellSize = 1.0f;
+			}
+			else {
+				//nothing nearby - speed up
+				cellSize = 4.0f;
+			}
 		}
+
+		pos_floor = floor(testPos / cellSize) * cellSize;
+		nextrayLength1D = mix(pos_floor + cellSize - testPos, testPos - pos_floor, comp) * unitStepSize;
+		dist += min(nextrayLength1D.x, min(nextrayLength1D.y, nextrayLength1D.z)) + 0.01f;
 	}
 
+	dist -= min(nextrayLength1D.x, min(nextrayLength1D.y, nextrayLength1D.z)) + 0.01f;
 
 	if (dist < max_dist && vHit) {
 		max_dist = dist;
 
-		vec4 vox = getVoxel(testPos, 0, 0);
-		vec4 vox_mat = getVoxel(testPos, 1, 0);
+		vec4 vox = getVoxel(testPos, 0, layer_mask);
+		vec4 vox_mat = getVoxel(testPos, 1, layer_mask);
 		voutput.x = vox.x;
 		voutput.y = vox.y;
 		voutput.z = vox.z;
@@ -204,18 +218,16 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 		//clarity
 		matoutput = vox_mat;
 
-		box_pos = vec3(testPos);
-		box_pos.x += 0.5f;
-		box_pos.y += 0.5f;
-		box_pos.z += 0.5f;
+		box_pos = floor(testPos) + 0.5f;
 	}
 }
 
 //AO test
-bool occlusion(ivec3 delta_pos, ivec3 box_pos, int scx, int scz) {
-	ivec3 test = box_pos + delta_pos;
-	if (test.y < 0 || test.y >= chunk_size) return false;
-	return (getVoxel(test, 0, 0).w > 0.0f);
+bool occlusion(vec3 delta_pos, vec3 box_pos, int scx, int scz) {
+	vec3 test = box_pos + delta_pos;
+	if (test.y < 0.0f || test.y >= chunk_size) return false;
+	vec3 mask;
+	return (getVoxel(test, 0, mask).w > 0.0f);
 }
 
 void main() {
@@ -235,9 +247,6 @@ void main() {
 	float near = scene.projection.y;
 	float far = 255.0f;//scene.projection.z;
 
-	// set background color
-	vec4 pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
-
 	const float ray_retreat = 0.01f;
 
 	Ray ray;
@@ -251,6 +260,10 @@ void main() {
 	vec4 illumination = vec4(0);
 	vec3 prim_box_pos = vec3(0, 0, 0);
 
+	// set background color
+	scene.background = mix(vec3(184, 242, 255) / 255.0f, vec3(0, 162, 255) / 255.0f, ray.dir.y * 0.5f);
+	vec4 pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
+
 	for (int bounces = 0; bounces < 3; bounces++) {
 		vec4 ray_pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
 		vec3 hit = vec3(0, 0, 0);
@@ -262,28 +275,16 @@ void main() {
 
 			vec4 color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
 			float max_dist = far;
-			//float size = chunk_size;
-
-			/*vec3 bounds[2] = vec3[2](
-				chunk_pos,
-				chunk_pos + size
-				);*/
 
 			float tmp_dist = 0.0f;
-			//if (intersects(ray, bounds, tmp_dist)) {
 
-				// 222 = csize * sqrt(3)
-				//if (tmp_dist > -222.0f && tmp_dist < max_dist) {
-
-					// render the chunk
 			vec3 box_pos_t = vec3(-1, -1, -1);
 			octree_get_pixel(ray, max_dist, color, tmpmat, octree_depth, box_pos_t);
 			if (spp == 0 && box_pos_t.x != -1.0f) {
 				box_pos = box_pos_t;
 				vmat = tmpmat;
 			}
-			//}
-		//}
+
 
 			if (spp == 0) {
 				ray_pixel_color = color;
@@ -364,6 +365,7 @@ void main() {
 		}
 
 		if (ray_pixel_color.w >= far) {
+			scene.background = mix(vec3(184, 242, 255) / 255.0f, vec3(0, 162, 255) / 255.0f, ray.dir.y * 0.5f);
 			ray_pixel_color.x = scene.background.x;
 			ray_pixel_color.y = scene.background.y;
 			ray_pixel_color.z = scene.background.z;
@@ -383,7 +385,7 @@ void main() {
 
 					for (int y = -1; y < 2; y++) {
 						for (int z = -1; z < 2; z++) {
-							if (!(y == 0 && z == 0) && occlusion(ivec3(x, y, z), ivec3(box_pos), int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
+							if (!(y == 0 && z == 0) && occlusion(vec3(x, y, z), box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
 								float bl = 0.0f;
 								if (abs(z * y) > 0) {
 									bl = (1.0f - sqrt(pow(box_pos.z + float(z) * 0.5f - hit.z, 2.0f) + pow(box_pos.y + float(y) * 0.5f - hit.y, 2.0f)));
@@ -404,7 +406,7 @@ void main() {
 						int y = (a) ? 1 : -1;
 						for (int x = -1; x < 2; x++) {
 							for (int z = -1; z < 2; z++) {
-								if (!(x == 0 && z == 0) && occlusion(ivec3(x, y, z), ivec3(box_pos), int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
+								if (!(x == 0 && z == 0) && occlusion(vec3(x, y, z), box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
 									float bl = 0.0f;
 									if (abs(z * x) > 0) {
 										bl = (1.0f - sqrt(pow(box_pos.z + float(z) * 0.5f - hit.z, 2.0f) + pow(box_pos.x + float(x) * 0.5f - hit.x, 2.0f)));
@@ -425,7 +427,7 @@ void main() {
 							int z = (a) ? 1 : -1;
 							for (int x = -1; x < 2; x++) {
 								for (int y = -1; y < 2; y++) {
-									if (!(y == 0 && x == 0) && occlusion(ivec3(x, y, z), ivec3(box_pos), int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
+									if (!(y == 0 && x == 0) && occlusion(vec3(x, y, z), box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
 										float bl = 0.0f;
 										if (abs(y * x) > 0) {
 											bl = (1.0f - sqrt(pow(box_pos.y + float(y) * 0.5f - hit.y, 2.0f) + pow(box_pos.x + float(x) * 0.5f - hit.x, 2.0f)));
@@ -443,7 +445,7 @@ void main() {
 				}
 				pixel_color = mix(pixel_color, vec4(0.0f, 0.0f, 0.0f, ray_pixel_color.w), pow(shade, 2.0f) * 0.1f);
 			}
-
+			
 			//pixel_color.x = clamp(vmat.y + pixel_color.x, 0.0f, 1.0f);
 			//pixel_color.y = clamp(vmat.z + pixel_color.y, 0.0f, 1.0f);
 			//pixel_color.z = clamp(vmat.w + pixel_color.z, 0.0f, 1.0f);
