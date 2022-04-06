@@ -1,7 +1,7 @@
 #version 300 es
 
-precision mediump float;
-precision mediump sampler3D;
+precision highp float;
+precision highp sampler3D;
 
 // size of single octree leaf
 #define VOXEL_SIZE 2
@@ -23,53 +23,52 @@ uniform sampler2D noise;
 uniform vec3[6] scene_data;
 uniform ivec3[3] chunk_map;
 
-vec4 getVoxel(vec3 fpos, int i, out vec3 mask) {
+vec4 getVoxel(vec3 fpos, int i, int level, int scale, out vec2 mask) {
 	ivec3 pos = ivec3(fpos);
 	ivec3 chu = pos / int(chunk_size);
 	int chunk = chunk_map[chu.z][chu.x];
-	pos = pos % int(chunk_size);
-	ivec3 l2_pos = pos / 4;
-	l2_pos.x *= 2;
+	pos /= scale;
+	pos = pos - (chu * (int(chunk_size) / scale));
+	ivec3 l_pos = pos / 2;
+	l_pos.x *= 2;
 	pos.x = pos.x * 2 + i;
-	//pos /= int(pow(2.0f, float(level)));
-	//pos = pos % (chunk_size / int(pow(2.0f, float(level))));
 
 	vec4 fvoxel;
 	if (chunk == 0) {
-		fvoxel = texelFetch(u_textures[0], pos, 0);
-		mask.y = texelFetch(u_textures[0], l2_pos, 2).w;
+		fvoxel = texelFetch(u_textures[0], pos, level);
+		mask.y = texelFetch(u_textures[0], l_pos, level + 1).w;
 	}
 	else if (chunk == 1) {
-		fvoxel = texelFetch(u_textures[1], pos, 0);
-		mask.y = texelFetch(u_textures[1], l2_pos, 2).w;
+		fvoxel = texelFetch(u_textures[1], pos, level);
+		mask.y = texelFetch(u_textures[1], l_pos, level + 1).w;
 	}
 	else if (chunk == 2) {
-		fvoxel = texelFetch(u_textures[2], pos, 0);
-		mask.y = texelFetch(u_textures[2], l2_pos, 2).w;
+		fvoxel = texelFetch(u_textures[2], pos, level);
+		mask.y = texelFetch(u_textures[2], l_pos, level + 1).w;
 	}
 	else if (chunk == 3) {
-		fvoxel = texelFetch(u_textures[3], pos, 0);
-		mask.y = texelFetch(u_textures[3], l2_pos, 2).w;
+		fvoxel = texelFetch(u_textures[3], pos, level);
+		mask.y = texelFetch(u_textures[3], l_pos, level + 1).w;
 	}
 	else if (chunk == 4) {
-		fvoxel = texelFetch(u_textures[4], pos, 0);
-		mask.y = texelFetch(u_textures[4], l2_pos, 2).w;
+		fvoxel = texelFetch(u_textures[4], pos, level);
+		mask.y = texelFetch(u_textures[4], l_pos, level + 1).w;
 	}
 	else if (chunk == 5) {
-		fvoxel = texelFetch(u_textures[5], pos, 0);
-		mask.y = texelFetch(u_textures[5], l2_pos, 2).w;
+		fvoxel = texelFetch(u_textures[5], pos, level);
+		mask.y = texelFetch(u_textures[5], l_pos, level + 1).w;
 	}
 	else if (chunk == 6) {
-		fvoxel = texelFetch(u_textures[6], pos, 0);
-		mask.y = texelFetch(u_textures[6], l2_pos, 2).w;
+		fvoxel = texelFetch(u_textures[6], pos, level);
+		mask.y = texelFetch(u_textures[6], l_pos, level + 1).w;
 	}
 	else if (chunk == 7) {
-		fvoxel = texelFetch(u_textures[7], pos, 0);
-		mask.y = texelFetch(u_textures[7], l2_pos, 2).w;
+		fvoxel = texelFetch(u_textures[7], pos, level);
+		mask.y = texelFetch(u_textures[7], l_pos, level + 1).w;
 	}
 	else if (chunk == 8) {
-		fvoxel = texelFetch(u_textures[8], pos, 0);
-		mask.y = texelFetch(u_textures[8], l2_pos, 2).w;
+		fvoxel = texelFetch(u_textures[8], pos, level);
+		mask.y = texelFetch(u_textures[8], l_pos, level + 1).w;
 	}
 
 	mask.x = fvoxel.w;
@@ -157,16 +156,7 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 
 	vec3 testPos = ray.orig;
 
-	//float(int(v) + 1) - it could be ceil but it glitches 
-	/*rayLength1D.x = (ndir.x < 0.0f) ? (ray.orig.x - floor(ray.orig.x)) * unitStepSize.x :
-		(float(int(ray.orig.x) + 1) - ray.orig.x) * unitStepSize.x;
-	rayLength1D.y = (ndir.y < 0.0f) ? (ray.orig.y - floor(ray.orig.y)) * unitStepSize.y :
-		(float(int(ray.orig.y) + 1) - ray.orig.y) * unitStepSize.y;
-	rayLength1D.z = (ndir.z < 0.0f) ? (ray.orig.z - floor(ray.orig.z)) * unitStepSize.z :
-		(float(int(ray.orig.z) + 1) - ray.orig.z) * unitStepSize.z;*/
-
 	float cellSize = 1.0f;
-	vec3 layer_mask = vec3(0.0f);
 
 	bvec3 comp = lessThan(ndir, vec3(0.0f));
 	vec3 rayLength1D = mix(floor(ray.orig) + cellSize - ray.orig, ray.orig - floor(ray.orig), comp) * unitStepSize;
@@ -175,41 +165,49 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 	
 	vec3 pos_floor;
 
-	float dist = 0.0f;;
+	float dist = 0.0f;
 	bool vHit = false;
+	int layer = 0;
+	bool move = true;
+	vec2 mask;
 	while (!vHit && dist < max_dist) {
-
-		//position of curently tested voxel
-		testPos = ray.orig + (ndir * (dist + 0.01f));
-	
+		move = true;
 		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * 3.0f && testPos.y < chunk_size && testPos.z < chunk_size * 3.0f) {
-			getVoxel(testPos, 0, layer_mask);
-			if (layer_mask.x > 0.0f) {
-				//found intersection
-				vHit = true;
+			getVoxel(testPos, 0, layer, int(cellSize), mask);
+			if (mask.x > 0.0f) {
+				if (layer == 0) {
+					//found intersection
+					vHit = true;
+				}
+				else {
+					//something may be nearby - increase accuracy
+					layer -= 1;
+					cellSize /= 2.0f;
+				}	
+				move = false;
 			}
-			else if (layer_mask.y > 0.0f) {
-				//something may be nerby - increase accuracy
-				cellSize = 1.0f;
-			}
-			else {
+			else if (mask.y <= 0.0f) {
 				//nothing nearby - speed up
-				cellSize = 4.0f;
+				cellSize = clamp(cellSize * 2.0f, 1.0f, 64.0f);
+				layer = clamp(layer + 1, 0, 6);
 			}
 		}
+		if (move) {
+			pos_floor = floor(testPos / cellSize) * cellSize;
+			nextrayLength1D = mix(pos_floor + cellSize - testPos, testPos - pos_floor, comp) * unitStepSize;
+			dist += min(nextrayLength1D.x, min(nextrayLength1D.y, nextrayLength1D.z)) + 0.01f;
 
-		pos_floor = floor(testPos / cellSize) * cellSize;
-		nextrayLength1D = mix(pos_floor + cellSize - testPos, testPos - pos_floor, comp) * unitStepSize;
-		dist += min(nextrayLength1D.x, min(nextrayLength1D.y, nextrayLength1D.z)) + 0.01f;
+			//position of curently tested voxel
+			testPos = ray.orig + (ndir * (dist + 0.01f));
+		}
 	}
 
-	dist -= min(nextrayLength1D.x, min(nextrayLength1D.y, nextrayLength1D.z)) + 0.01f;
 
 	if (dist < max_dist && vHit) {
 		max_dist = dist;
 
-		vec4 vox = getVoxel(testPos, 0, layer_mask);
-		vec4 vox_mat = getVoxel(testPos, 1, layer_mask);
+		vec4 vox = getVoxel(testPos, 0, 0, 1, mask);
+		vec4 vox_mat = getVoxel(testPos, 1, 0, 1, mask);
 		voutput.x = vox.x;
 		voutput.y = vox.y;
 		voutput.z = vox.z;
@@ -226,8 +224,8 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 bool occlusion(vec3 delta_pos, vec3 box_pos, int scx, int scz) {
 	vec3 test = box_pos + delta_pos;
 	if (test.y < 0.0f || test.y >= chunk_size) return false;
-	vec3 mask;
-	return (getVoxel(test, 0, mask).w > 0.0f);
+	vec2 mask;
+	return (getVoxel(test, 0, 0, 1, mask).w > 0.0f);
 }
 
 void main() {
