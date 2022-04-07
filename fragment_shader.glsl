@@ -23,52 +23,51 @@ uniform sampler2D noise;
 uniform vec3[6] scene_data;
 uniform ivec3[3] chunk_map;
 
-vec4 getVoxel(vec3 fpos, int i, int level, int scale, out vec2 mask) {
+vec4 getVoxel(vec3 fpos, float i, float level, out vec2 mask) {
 	ivec3 pos = ivec3(fpos);
 	ivec3 chu = pos / int(chunk_size);
 	int chunk = chunk_map[chu.z][chu.x];
-	pos /= scale;
-	pos = pos - (chu * (int(chunk_size) / scale));
-	ivec3 l_pos = pos / 2;
-	l_pos.x *= 2;
-	pos.x = pos.x * 2 + i;
+
+	fpos /= chunk_size;
+	fpos -= vec3(chu);
+	fpos.x = (fpos.x + i) * 0.5f;
 
 	vec4 fvoxel;
 	if (chunk == 0) {
-		fvoxel = texelFetch(u_textures[0], pos, level);
-		mask.y = texelFetch(u_textures[0], l_pos, level + 1).w;
+		fvoxel = textureLod(u_textures[0], fpos, level);
+		mask.y = textureLod(u_textures[0], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 1) {
-		fvoxel = texelFetch(u_textures[1], pos, level);
-		mask.y = texelFetch(u_textures[1], l_pos, level + 1).w;
+		fvoxel = textureLod(u_textures[1], fpos, level);
+		mask.y = textureLod(u_textures[1], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 2) {
-		fvoxel = texelFetch(u_textures[2], pos, level);
-		mask.y = texelFetch(u_textures[2], l_pos, level + 1).w;
+		fvoxel = textureLod(u_textures[2], fpos, level);
+		mask.y = textureLod(u_textures[2], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 3) {
-		fvoxel = texelFetch(u_textures[3], pos, level);
-		mask.y = texelFetch(u_textures[3], l_pos, level + 1).w;
+		fvoxel = textureLod(u_textures[3], fpos, level);
+		mask.y = textureLod(u_textures[3], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 4) {
-		fvoxel = texelFetch(u_textures[4], pos, level);
-		mask.y = texelFetch(u_textures[4], l_pos, level + 1).w;
+		fvoxel = textureLod(u_textures[4], fpos, level);
+		mask.y = textureLod(u_textures[4], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 5) {
-		fvoxel = texelFetch(u_textures[5], pos, level);
-		mask.y = texelFetch(u_textures[5], l_pos, level + 1).w;
+		fvoxel = textureLod(u_textures[5], fpos, level);
+		mask.y = textureLod(u_textures[5], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 6) {
-		fvoxel = texelFetch(u_textures[6], pos, level);
-		mask.y = texelFetch(u_textures[6], l_pos, level + 1).w;
+		fvoxel = textureLod(u_textures[6], fpos, level);
+		mask.y = textureLod(u_textures[6], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 7) {
-		fvoxel = texelFetch(u_textures[7], pos, level);
-		mask.y = texelFetch(u_textures[7], l_pos, level + 1).w;
+		fvoxel = textureLod(u_textures[7], fpos, level);
+		mask.y = textureLod(u_textures[7], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 8) {
-		fvoxel = texelFetch(u_textures[8], pos, level);
-		mask.y = texelFetch(u_textures[8], l_pos, level + 1).w;
+		fvoxel = textureLod(u_textures[8], fpos, level);
+		mask.y = textureLod(u_textures[8], fpos, level + 1.0f).w;
 	}
 
 	mask.x = fvoxel.w;
@@ -167,21 +166,21 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 
 	float dist = 0.0f;
 	bool vHit = false;
-	int layer = 0;
+	float layer = 0.0f;
 	bool move = true;
 	vec2 mask;
 	while (!vHit && dist < max_dist) {
 		move = true;
 		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * 3.0f && testPos.y < chunk_size && testPos.z < chunk_size * 3.0f) {
-			getVoxel(testPos, 0, layer, int(cellSize), mask);
+			getVoxel(testPos, 0.0f, layer, mask);
 			if (mask.x > 0.0f) {
-				if (layer == 0) {
+				if (layer == 0.0f) {
 					//found intersection
 					vHit = true;
 				}
 				else {
 					//something may be nearby - increase accuracy
-					layer -= 1;
+					layer -= 1.0f;
 					cellSize /= 2.0f;
 				}	
 				move = false;
@@ -189,7 +188,7 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 			else if (mask.y <= 0.0f) {
 				//nothing nearby - speed up
 				cellSize = clamp(cellSize * 2.0f, 1.0f, 64.0f);
-				layer = clamp(layer + 1, 0, 6);
+				layer = clamp(layer + 1.0f, 0.0f, 6.0f);
 			}
 		}
 		if (move) {
@@ -206,8 +205,8 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 	if (dist < max_dist && vHit) {
 		max_dist = dist;
 
-		vec4 vox = getVoxel(testPos, 0, 0, 1, mask);
-		vec4 vox_mat = getVoxel(testPos, 1, 0, 1, mask);
+		vec4 vox = getVoxel(testPos, 0.0f, 0.0f, mask);
+		vec4 vox_mat = getVoxel(testPos, 1.0f, 0.0f, mask);
 		voutput.x = vox.x;
 		voutput.y = vox.y;
 		voutput.z = vox.z;
@@ -225,7 +224,7 @@ bool occlusion(vec3 delta_pos, vec3 box_pos, int scx, int scz) {
 	vec3 test = box_pos + delta_pos;
 	if (test.y < 0.0f || test.y >= chunk_size) return false;
 	vec2 mask;
-	return (getVoxel(test, 0, 0, 1, mask).w > 0.0f);
+	return (getVoxel(test, 0.0f, 0.0f, mask).w > 0.0f);
 }
 
 void main() {

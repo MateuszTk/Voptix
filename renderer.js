@@ -535,12 +535,12 @@ function init(vsSource, fsSource, gl, canvas) {
 }
 
 function setElement(x, y, z, r, g, b, a, s, e, chunk, level, len) {
-    let ind = (x + y * len + z * len * len) * 8;
+    let ind = x * 4 + (y * len + z * len * len) * 8;
     pixels[chunk][level][ind] = r;
     pixels[chunk][level][ind + 1] = g;
     pixels[chunk][level][ind + 2] = b;
     pixels[chunk][level][ind + 3] = a;
-    pixels[chunk][level][ind + 4] = (s & 0b11110000) + (e & 0b00001111);
+    pixels[chunk][level][ind + len * 4 + 0] = (s & 0b11110000) + (e & 0b00001111);
 }
 
 //color 655
@@ -577,7 +577,7 @@ function octree_set(x, y, z, r, g, b, a, s, e, chunk) {
         let pow2 = 1;
         let csize = size;
         for (let depth = 0; depth < octree_depth; depth++) {
-            let ind = ((xo >> (octree_depth - depth)) + (yo >> (octree_depth - depth)) * pow2 + (zo >> (octree_depth - depth)) * pow2 * pow2) * 8;
+            let ind = (xo >> (octree_depth - depth)) * 4 + ((yo >> (octree_depth - depth)) * pow2 + (zo >> (octree_depth - depth)) * pow2 * pow2) * 8;
 
             csize /= 2;
 
@@ -609,7 +609,7 @@ function octree_set(x, y, z, r, g, b, a, s, e, chunk) {
             zo >>= 1;
             oc = (((x >> depth) & 1) * 1) + (((y >> depth) & 1) * 2) + (((z >> depth) & 1) * 4);
 
-            let ind = (xo + yo * pow2 + zo * pow2 * pow2) * 8;
+            let ind = xo * 4 + (yo * pow2 + zo * pow2 * pow2) * 8;
             if (cut_branches)
                 pixels[chunk][depth + 1][ind + 3] &= ~(1 << oc);
             if (pixels[chunk][depth + 1][ind + 3] != 0) cut_branches = false;
