@@ -254,12 +254,13 @@ void main() {
 
 	vec4 prevmat = vec4(0, 0, 0, 0);
 	vec4 tmpmat = vec4(0, 0, 0, 0);
-	vec4 illumination = vec4(0);
+	vec4 illumination = vec4(0.5f);
 	vec3 prim_box_pos = vec3(0, 0, 0);
 
 	// set background color
 	scene.background = mix(vec3(184, 242, 255) / 255.0f, vec3(0, 162, 255) / 255.0f, ray.dir.y * 0.5f);
 	vec4 pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
+	vec3 primary_hit = vec3(0.0f);
 
 	for (int bounces = 0; bounces < 3; bounces++) {
 		vec4 ray_pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
@@ -267,7 +268,7 @@ void main() {
 		vec3 box_pos = vec3(0, 0, 0);
 		vec4 vmat = vec4(0, 0, 0, 0);
 
-		int samples = 2;//(bounces == 0) ? 3 : 2;
+		int samples = (bounces == 0) ? 3 : 2;
 		for (int spp = 0; spp < samples; spp++) {
 
 			vec4 color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
@@ -285,20 +286,25 @@ void main() {
 
 			if (spp == 0) {
 				ray_pixel_color = color;
-				if (bounces == 0) prim_box_pos = box_pos;
+				if (bounces == 0) { 
+					prim_box_pos = box_pos;
+				}
 				float w = ray_pixel_color.w;
 				if ((int(vmat.x * 255.0f) & 15) > 0) ray_pixel_color += vec4(float((int(vmat.x * 255.0f) & 15) << 4) / 255.0f) * color;
 				ray_pixel_color.w = w;
 			}
 			else if (spp == 1) {
-				ray_pixel_color.x = ((color.w >= far) ? ray_pixel_color.x : ray_pixel_color.x * 0.5f);
-				ray_pixel_color.y = ((color.w >= far) ? ray_pixel_color.y : ray_pixel_color.y * 0.5f);
-				ray_pixel_color.z = ((color.w >= far) ? ray_pixel_color.z : ray_pixel_color.z * 0.5f);
-				//if (color.w >= far) illumination = vec4(1,1,1,1);
+				//ray_pixel_color.x = ((color.w >= far) ? ray_pixel_color.x : ray_pixel_color.x * 0.5f);
+				//ray_pixel_color.y = ((color.w >= far) ? ray_pixel_color.y : ray_pixel_color.y * 0.5f);
+				//ray_pixel_color.z = ((color.w >= far) ? ray_pixel_color.z : ray_pixel_color.z * 0.5f);
+				if (color.w < far) {
+					illumination *= 0.3f;
+				}
+				
 			}
 			else {
 				if ((int(tmpmat.x * 255.0f) & 15) > 0 && color.w < far)
-					illumination = vec4(float((int(tmpmat.x * 255.0f) & 15) << 4) / 255.0f) * color;
+					illumination = vec4(float((int(tmpmat.x * 255.0f) & 15) << 4) / 255.0f) * color * 8.0f;
 			}
 			if (color.w >= far && spp == 0) {
 				break;
@@ -315,22 +321,25 @@ void main() {
 
 				if (spp == 0) hit = origin;
 
+				if (bounces == 0 && spp == 0) {
+					primary_hit = hit;
+				}
+
+				vec4 rnd = vec4(rand(pos + scene.screen.z), rand(pos + vec2(1.0f, 0.0f) + scene.screen.z), rand(pos + vec2(2.0f, 0.0f) + scene.screen.z), 1.0f);//texelFetch(noise, ivec2(pos), 0);
+				rnd.x = rnd.x * 2.0f - 1.0f;
+				rnd.y = rnd.y * 2.0f - 1.0f;
+
 				vec3 dir;
 				if (spp < 1) {
 					//shadow ray
+					rnd *= 0.1f;
 					dir = vec3(
-						2.0f,
-						1.0f,
-						-1.0f
+						2.0f + rnd.x,
+						1.0f + rnd.y,
+						-1.0f + rnd.z
 					);
 				}
 				else {
-					//float rn = rand(pos + vec2(scene.screen.z)) * 2.0f - 1.0f;
-					//float rn1 = rand(vec2(rn * 200.0f, rn * 123.0f)) * 2.0f - 1.0f;
-					//float rn2 = rand(vec2(rn1 * 200.0f, rn1 * 123.0f));
-					vec4 rnd = texelFetch(noise, ivec2(pos), 0);
-					rnd.x = rnd.x * 2.0f - 1.0f;
-					rnd.y = rnd.y * 2.0f - 1.0f;
 					/*dir = vec3(
 						rn,
 						rn1,
@@ -473,12 +482,25 @@ void main() {
 	float w = pixel_color.w;
 	pixel_color = clamp(pixel_color, 0.0f, 1.0f);
 	pixel_color.w = w;
+
+	//color output
 	outColor[0] = vec4(pixel_color.x, pixel_color.y, pixel_color.z, clamp(pixel_color.w / 255.0f * 2.0f, 0.0f, 1.0f));
-	outColor[1] = vec4(1.0f);
-	outColor[2] = vec4(1.0f);
-	//0b11100000 0b00011100
-	//vec4 outColorValue = vec4(floor(prim_box_pos.x), floor(prim_box_pos.y), floor(prim_box_pos.z), (int(illumination.x * 255.0f) & 224) + ((int(illumination.y * 255.0f) >> 3) & 28) + (int(illumination.z * 255.0f) >> 6));
-	//outColor[1] = outColorValue / 255.0f;//vec4(prim_box_pos.x, illumination.y, illumination.z, illumination.z);//
-	//outColor[1] = vec4(floor(prim_box_pos.x), floor(prim_box_pos.y), floor(prim_box_pos.z), 0.0f) / 255.0f;
-	//outColor[2] = vec4(illumination.x, illumination.y, illumination.z, 0.0f);
+
+	//normals
+	vec4 normal = vec4(1.0f);//vec3(ivec3(prim_box_pos) % 255) / 255.0f;
+	normal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f || primary_hit.x <= prim_box_pos.x - 0.5f) ? 1.0f : 0.0f);
+	normal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f || primary_hit.y <= prim_box_pos.y - 0.5f) ? 1.0f : 0.0f);
+	normal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f || primary_hit.z <= prim_box_pos.z - 0.5f) ? 1.0f : 0.0f);
+	outColor[1] = normal;
+
+	//ligting data output
+	vec4 light = vec4(0.5f);
+	//z component tells wether position or rotation has changed since previous frame
+	if (scene.camera_direction.z > 0.0f) {
+		light = vec4(illumination.x, illumination.y, illumination.z, 0.0f);
+	}
+	else {		
+		light = (texelFetch(noise, ivec2(pos), 0) * 20.0f + vec4(illumination.x, illumination.y, illumination.z, 0.0f)) / 21.0f;
+	}
+	outColor[2] = light;
 }
