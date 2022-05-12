@@ -20,7 +20,7 @@ const int chunk_count = 9;
 out vec4[3] outColor;
 uniform sampler3D u_textures[chunk_count];
 uniform sampler2D noise;
-uniform vec3[6] scene_data;
+uniform vec3[8] scene_data;
 uniform ivec3[3] chunk_map;
 
 vec4 getVoxel(vec3 fpos, float i, float level, out vec2 mask) {
@@ -87,6 +87,8 @@ struct Scene {
 	vec3 screen;
 	vec3 background;
 	vec3 projection;
+	vec3 prev_pos;
+	vec3 prev_rot;
 };
 
 void load_direction(inout vec3 vec, vec3 rotation) {
@@ -235,19 +237,21 @@ void main() {
 		scene_data[2],
 		scene_data[3],
 		scene_data[4],
-		scene_data[5]
+		scene_data[5],
+		scene_data[6],
+		scene_data[7]
 	);
 
 	vec2 pos = vec2(gl_FragCoord.x, gl_FragCoord.y);
 
-	float fov = scene.projection.x;
+	float fov = tan(scene.projection.x / 2.0f);
 	float near = scene.projection.y;
 	float far = 255.0f;//scene.projection.z;
 
 	const float ray_retreat = 0.01f;
 
 	Ray ray;
-	load_primary_ray(ray, scene, pos, scene.screen.x, scene.screen.y, tan(fov / 2.0f));
+	load_primary_ray(ray, scene, pos, scene.screen.x, scene.screen.y, fov);
 	Ray primary_ray = ray;
 
 	int octree_depth = 6;
@@ -481,10 +485,56 @@ void main() {
 	//}
 	float w = pixel_color.w;
 	pixel_color = clamp(pixel_color, 0.0f, 1.0f);
-	pixel_color.w = w;
+	pixel_color.w = clamp(w / 255.0f * 2.0f, 0.0f, 1.0f);
+
+	//restore lighting from previous frame
+	vec3 direction = primary_hit - scene.prev_pos;
+	vec3 ray_dir = normalize(direction);
+
+	vec3 rotation = vec3(
+		0.0f,//-scene.prev_rot.y,
+		-scene.prev_rot.x,//-3.14159265359f * 0.5f 
+		0.0f
+	);
+	load_direction(direction, rotation);
+
+	rotation = vec3(
+		-scene.prev_rot.y,
+		0.0f,//-3.14159265359f * 0.5f 
+		0.0f
+	);
+	load_direction(direction, rotation);
+
+	direction = normalize(direction);//primary_ray.dir;//
+	float ar = scene.screen.y / scene.screen.x;
+	vec2 pixel = vec2(
+		((direction.x / direction.z) * ar / fov + 1.0f) * 0.5f,
+		((direction.y / direction.z) / fov + 1.0f) * 0.5f);
+
+	//pixel = pos / scene.screen.xy;
+	//direction.yz *= -1.0f;
+	vec4 acc_ill = vec4(-1);
+	vec4 light = vec4(0.0f);
+	if (pixel.x > 0.0f && pixel.y > 0.0f && pixel.y < 1.0f && pixel.x < 1.0) {
+		if (distance(scene.prev_pos + ray_dir * (texture(noise, pixel).w * 255.0f / 2.0f), primary_hit) < 0.5f) {
+			acc_ill = texture(noise, pixel);
+			light = floor((acc_ill * 20.0f + vec4(illumination.x, illumination.y, illumination.z, 0.0f)) / 21.0f * 255.0f) / 255.0f;
+		}
+		else {
+			//pixel_color.r = 1.0f;
+			light = vec4(illumination.x, illumination.y, illumination.z, 0.0f);
+		}
+	}
+	else {
+		//pixel_color.r = 1.0f;
+		light = vec4(illumination.x, illumination.y, illumination.z, 0.0f);
+	}
+	
 
 	//color output
-	outColor[0] = vec4(pixel_color.x, pixel_color.y, pixel_color.z, clamp(pixel_color.w / 255.0f * 2.0f, 0.0f, 1.0f));
+	vec4 outColorPrep = clamp(pixel_color * (0.5f + light), 0.0f, 1.0f);
+	outColorPrep.w = pixel_color.w;
+	outColor[0] = outColorPrep;
 
 	//normals
 	vec4 normal = vec4(1.0f);//vec3(ivec3(prim_box_pos) % 255) / 255.0f;
@@ -494,13 +544,8 @@ void main() {
 	outColor[1] = normal;
 
 	//ligting data output
-	vec4 light = vec4(0.5f);
-	//z component tells wether position or rotation has changed since previous frame
-	if (scene.camera_direction.z > 0.0f) {
-		light = vec4(illumination.x, illumination.y, illumination.z, 0.0f);
-	}
-	else {		
-		light = (texelFetch(noise, ivec2(pos), 0) * 20.0f + vec4(illumination.x, illumination.y, illumination.z, 0.0f)) / 21.0f;
-	}
+	
+	
+	light.w = pixel_color.w;
 	outColor[2] = light;
 }

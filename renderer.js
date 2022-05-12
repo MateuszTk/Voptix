@@ -70,6 +70,9 @@ var sensivity = 0.8;
 var speed = 1.0;
 var moved = false;
 
+var prev_rotation = glMatrix.vec3.create();
+var prev_position = glMatrix.vec3.create();
+
 window.onload = main;
 
 document.addEventListener('pointerlockchange', lockChange, false);
@@ -544,6 +547,11 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
 
     fb_pixels = new Uint8Array(4 * canvas.width * canvas.height);
 
+    //test- tmp
+    //updateCamera(gl);
+    //prev_rotation = glMatrix.vec3.clone(rotation);
+    //prev_position = glMatrix.vec3.clone(pos);
+
     //start render loop
     window.requestAnimationFrame(function (timestamp) {
         drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, 0.0);
@@ -683,9 +691,13 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],
         canvas.width, canvas.height, Math.random() * 255,
         3.0 / 255.0, 219.0 / 255.0, 252.0 / 255.0, //background
-        1.2, 0.01, 100000.0 //projection (fov near far)
+        1.2, 0.01, 100000.0, //projection (fov near far)
+        prev_position[0] + 1.5 * size, prev_position[1], prev_position[2] + 1.5 * size,
+        prev_rotation[0], prev_rotation[1], prev_rotation[2]
     ];
 
+    prev_rotation = glMatrix.vec3.clone(rotation);
+    prev_position = glMatrix.vec3.clone(pos);
     if (moved) moved = false;
 
     gl.useProgram(shaderProgram);
