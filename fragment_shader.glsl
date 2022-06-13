@@ -294,17 +294,15 @@ void main() {
 					prim_box_pos = box_pos;
 				}
 				float w = ray_pixel_color.w;
-				if ((int(vmat.x * 255.0f) & 15) > 0) ray_pixel_color += vec4(float((int(vmat.x * 255.0f) & 15) << 4) / 255.0f) * color;
+				if ((int(vmat.x * 255.0f) & 15) > 0) { 
+					illumination = vec4(8.0f);
+				}
 				ray_pixel_color.w = w;
 			}
 			else if (spp == 1) {
-				//ray_pixel_color.x = ((color.w >= far) ? ray_pixel_color.x : ray_pixel_color.x * 0.5f);
-				//ray_pixel_color.y = ((color.w >= far) ? ray_pixel_color.y : ray_pixel_color.y * 0.5f);
-				//ray_pixel_color.z = ((color.w >= far) ? ray_pixel_color.z : ray_pixel_color.z * 0.5f);
 				if (color.w < far) {
-					illumination *= 0.3f;
-				}
-				
+					illumination *= 0.1f;
+				}				
 			}
 			else {
 				if ((int(tmpmat.x * 255.0f) & 15) > 0 && color.w < far)
@@ -344,11 +342,6 @@ void main() {
 					);
 				}
 				else {
-					/*dir = vec3(
-						rn,
-						rn1,
-						rn2
-					);*/
 
 					dir = ray.dir;
 
@@ -478,11 +471,7 @@ void main() {
 		Bounce(primary_ray, hit, box_pos, 0.5f);
 		ray = primary_ray;
 	}
-	//if (illumination.w > 0.0f) {
-	//	pixel_color.x = illumination.x;//mix(pixel_color.x, illumination.x, 0.5f);
-	//	pixel_color.y = illumination.y;// mix(pixel_color.y, illumination.y, 0.5f);
-	//	pixel_color.z = illumination.z;//mix(pixel_color.z, illumination.z, 0.5f);
-	//}
+	
 	float w = pixel_color.w;
 	pixel_color = clamp(pixel_color, 0.0f, 1.0f);
 	pixel_color.w = clamp(w / 255.0f * 2.0f, 0.0f, 1.0f);
@@ -492,20 +481,20 @@ void main() {
 	vec3 ray_dir = normalize(direction);
 
 	vec3 rotation = vec3(
-		0.0f,//-scene.prev_rot.y,
-		-scene.prev_rot.x,//-3.14159265359f * 0.5f 
+		0.0f,
+		-scene.prev_rot.x,
 		0.0f
 	);
 	load_direction(direction, rotation);
 
 	rotation = vec3(
 		-scene.prev_rot.y,
-		0.0f,//-3.14159265359f * 0.5f 
+		0.0f,
 		0.0f
 	);
 	load_direction(direction, rotation);
 
-	direction = normalize(direction);//primary_ray.dir;//
+	direction = normalize(direction);
 	float ar = scene.screen.y / scene.screen.x;
 	vec2 pixel = vec2(
 		((direction.x / direction.z) * ar / fov + 1.0f) * 0.5f,
@@ -532,9 +521,8 @@ void main() {
 	
 
 	//color output
-	vec4 outColorPrep = clamp(pixel_color * (0.5f + light), 0.0f, 1.0f);
-	outColorPrep.w = pixel_color.w;
-	outColor[0] = outColorPrep;
+	
+	outColor[0] = pixel_color;
 
 	//normals
 	vec4 normal = vec4(1.0f);//vec3(ivec3(prim_box_pos) % 255) / 255.0f;

@@ -16,36 +16,42 @@
         <canvas id="glCanvas" width="800" height="600"></canvas>
         <div class="crosshair"></div>
 
-        <!--MaciekTk88-->
+        <!--by MaciekTk88-->
         <div id="polowaprzewijana">
             <div class="Wrapper">
                 <div class="pole1">
-                    <div class=" edytor">CUBE EDITOR</div>
+                    <div class=" edytor">VOXEL</div>
 
                     <div class="suwaki">
                         <div class="slidecontainer"></div>
                         <font style="font-size: 30px; color: red; font-family: Impact">R.</font>
-                        <input type="range" min="0" max="255" value="255" class="slider" id="RRange">
-                        <span style="font-size: 30px; color: red; font-family: Impact" id="demo"></span>
+                        <input type="range" min="0" max="255" value="255" id="RRange">
+                        <span style="font-size: 30px; color: red; font-family: Impact" id="Rtext"></span>
 
                         <br>
 
                         <font style="font-size: 30px; color: green; font-family: Impact">G.</font>
-                        <input type="range" min="0" max="255" value="255" class="slider2" id="GRange">
-                        <span style="font-size: 30px; color: green; font-family: Impact" id="demo1"></span>
+                        <input type="range" min="0" max="255" value="255" id="GRange">
+                        <span style="font-size: 30px; color: green; font-family: Impact" id="Gtext"></span>
 
 
                         <br>
 
                         <font style="font-size: 30px; color: blue; font-family: Impact">B.</font>
-                        <input type="range" min="0" max="255" value="255" class="slider3" id="BRange">
-                        <span style="font-size: 30px; color: blue; font-family: Impact" id="demo2"></span>
+                        <input type="range" min="0" max="255" value="255" id="BRange">
+                        <span style="font-size: 30px; color: blue; font-family: Impact" id="Btext"></span>
 
                         <br>
 
                         <font style="font-size: 30px; color: white; font-family: Impact">C.</font>
-                        <input type="range" min="0" max="255" value="255" class="slider4" id="ARange">
-                        <span style="font-size: 30px; color: white; font-family: Impact" id="demo3"></span>
+                        <input type="range" min="0" max="255" value="255" id="ARange">
+                        <span style="font-size: 30px; color: white; font-family: Impact" id="Atext"></span>
+
+                        <br>
+
+                        <font style="font-size: 30px; color: white; font-family: Impact">E.&nbsp;</font>
+                        <input type="range" min="0" max="255" value="255" id="ERange">
+                        <span style="font-size: 30px; color: white; font-family: Impact" id="Etext"></span>
                     </div>
 
                     <div id="suwaki">
@@ -61,82 +67,101 @@
                                             g = brush.color_g;
                                             b = brush.color_b;
 
-                                            slider.value = r;
-                                            slider1.value = g;
-                                            slider2.value = b;
+                                            sliderR.value = r;
+                                            sliderG.value = g;
+                                            sliderB.value = b;
 
-                                            output.innerHTML = r;
-                                            output1.innerHTML = g;
-                                            output2.innerHTML = b;
+                                            outputR.innerHTML = r;
+                                            outputG.innerHTML = g;
+                                            outputB.innerHTML = b;
 
                                             square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
                                         }
 
-                                        var r = 255, g = 255, b = 255, c = 0;
+                                        var r = 255, g = 255, b = 255, c = 0, e = 0;
                                         var square = document.getElementById("square");
                                         var gora = document.getElementById("gora");
 
-                                        var slider = document.getElementById("RRange");
-                                        var output = document.getElementById("demo");
-                                        output.innerHTML = slider.value; // Display the default slider value
-                                        slider.oninput = function () {
-                                            output.innerHTML = slider.value;
-                                            r = slider.value;
+                                        var sliderR = document.getElementById("RRange");
+                                        var outputR = document.getElementById("Rtext");
+                                        outputR.innerHTML = sliderR.value; // Display the default slider value
+                                        sliderR.oninput = function () {
+                                            outputR.innerHTML = sliderR.value;
+                                            r = sliderR.value;
                                             square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
                                             brush.color_r = r;
                                             brush.color_g = g;
                                             brush.color_b = b;
                                             brush.clarity = c;
+                                            brush.emission = e;
                                         }
 
-                                        var slider1 = document.getElementById("GRange");
-                                        var output1 = document.getElementById("demo1");
-                                        output1.innerHTML = slider1.value; // Display the default slider value
-                                        slider1.oninput = function () {
-                                            output1.innerHTML = slider1.value;
-                                            g = slider1.value;
+                                        var sliderG = document.getElementById("GRange");
+                                        var outputG = document.getElementById("Gtext");
+                                        outputG.innerHTML = sliderG.value; // Display the default slider value
+                                        sliderG.oninput = function () {
+                                            outputG.innerHTML = sliderG.value;
+                                            g = sliderG.value;
                                             square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
                                             brush.color_r = r;
                                             brush.color_g = g;
                                             brush.color_b = b;
                                             brush.clarity = c;
+                                            brush.emission = e;
                                         }
 
-                                        var slider2 = document.getElementById("BRange");
-                                        var output2 = document.getElementById("demo2");
-                                        output2.innerHTML = slider2.value; // Display the default slider value
-                                        slider2.oninput = function () {
-                                            output2.innerHTML = slider2.value;
-                                            b = slider2.value;
+                                        var sliderB = document.getElementById("BRange");
+                                        var outputB = document.getElementById("Btext");
+                                        outputB.innerHTML = sliderB.value; // Display the default slider value
+                                        sliderB.oninput = function () {
+                                            outputB.innerHTML = sliderB.value;
+                                            b = sliderB.value;
                                             square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
                                             brush.color_r = r;
                                             brush.color_g = g;
                                             brush.color_b = b;
                                             brush.clarity = c;
+                                            brush.emission = e;
                                         }
 
-                                        var slider3 = document.getElementById("ARange");
-                                        var output3 = document.getElementById("demo3");
-                                        output3.innerHTML = slider3.value; // Display the default slider value
-                                        slider3.oninput = function () {
-                                            output3.innerHTML = slider3.value;
-                                            c = slider3.value;
+                                        var sliderA = document.getElementById("ARange");
+                                        var outputA = document.getElementById("Atext");
+                                        outputA.innerHTML = sliderA.value; // Display the default slider value
+                                        sliderA.oninput = function () {
+                                            outputA.innerHTML = sliderA.value;
+                                            c = sliderA.value;
                                             gora.style.opacity = c / 255;
                                             brush.color_r = r;
                                             brush.color_g = g;
                                             brush.color_b = b;
                                             brush.clarity = c;
+                                            brush.emission = e;
                                         }
 
-                                        slider.value = r;
-                                        slider1.value = g;
-                                        slider2.value = b;
-                                        slider3.value = c;
+                                        var sliderE = document.getElementById("ERange");
+                                        var outputE = document.getElementById("Etext");
+                                        outputE.innerHTML = sliderE.value; // Display the default slider value
+                                        sliderE.oninput = function () {
+                                            outputE.innerHTML = sliderE.value;
+                                            e = sliderE.value;
+                                            brush.color_r = r;
+                                            brush.color_g = g;
+                                            brush.color_b = b;
+                                            brush.clarity = c;
+                                            brush.emission = e;
+                                        }
 
-                                        output.innerHTML = r;
-                                        output1.innerHTML = g;
-                                        output2.innerHTML = b;
-                                        output3.innerHTML = c;
+                                        sliderR.value = r;
+                                        sliderG.value = g;
+                                        sliderB.value = b;
+                                        sliderA.value = c;
+                                        sliderE.value = e;
+
+                                        outputR.innerHTML = r;
+                                        outputG.innerHTML = g;
+                                        outputB.innerHTML = b;
+                                        outputA.innerHTML = c;
+                                        outputE.innerHTML = e;
 
                                         gora.style.opacity = c / 255;
                                         square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
@@ -144,6 +169,7 @@
                                         brush.color_g = g;
                                         brush.color_b = b;
                                         brush.clarity = c;
+                                        brush.emission = e;
                                     </script>
                                 </div>
                             </div>
@@ -153,7 +179,7 @@
 
 
                 <div class="pole2">
-                    <div class="edytor">BRUSH EDITOR</div>
+                    <div class="edytor">BRUSH</div>
                     <div class="suwaki2">
 
                         <font style="font-size: 30px; color: white; font-family: Impact">Size</font>
@@ -219,7 +245,7 @@
                 </div>
 
                 <div class="pole3">
-                    <div class="edytor">WORLD SETTINGS</div>
+                    <div class="edytor">WORLD</div>
                     <button type="button" id="save" onclick="save('save')">Save world</button>
                     <button type="button" id="open" onclick="loadFile()">Open world</button>
                     <div class="malyedytor">SEED</div>
@@ -313,5 +339,4 @@
             </div>
     </div>
 </body>
-
 </html>

@@ -45,7 +45,7 @@ var angle = glMatrix.vec3.create();
 
 var cursor3D = glMatrix.vec3.create();
 var paint = 0;
-var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, type: true};
+var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, type: true};
 
 const pixelsPerVoxel = 2;
 const size = 128;
@@ -558,6 +558,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     });
 }
 
+//set voxel values in data texture
 function setElement(x, y, z, r, g, b, a, s, e, chunk, level, len) {
     let ind = x * 4 + (y * len + z * len * len) * 8;
     pixels[chunk][level][ind] = r;
@@ -567,6 +568,7 @@ function setElement(x, y, z, r, g, b, a, s, e, chunk, level, len) {
     pixels[chunk][level][ind + len * 4 + 0] = (s & 0b11110000) + (e & 0b00001111);
 }
 
+//set voxel values in the chunk in the given position
 function octree_set(x, y, z, r, g, b, a, s, e, chunk) {
     if (a > 0) {
         // iterate until the mask is shifted to target (leaf) layer
@@ -781,7 +783,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                             if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
                                 if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
                                     let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
-                                    octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, 255, chunkid);
+                                    octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, chunkid);
                                     chunks2send.set(chunkid, 1);
                                 }
                             }
@@ -799,7 +801,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                     cursor3D[1] %= size;
                     cursor3D[2] %= size;
                     let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, 255, chunkid);
+                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, chunkid);
                     send_chunk(chunkid, gl);
                 }
             }

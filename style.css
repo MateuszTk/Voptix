@@ -35,14 +35,14 @@ body {
     background-color: red;
 }
 
-/*MaciekTk8888888888888888888888888888888*/
+/*by MaciekTk88*/
 
 .slidecontainer {
     width: 100%; /* Width of the outside container */
 }
 
 /* The slider itself */
-.slider {
+#RRange {
     -webkit-appearance: none; /* Override default CSS styles */
     width: 200px;
     height: 20px;
@@ -54,7 +54,7 @@ body {
     border-radius: 25px;
 }
 
-.slider2 {
+#GRange {
     -webkit-appearance: none; /* Override default CSS styles */
     width: 200px;
     height: 20px;
@@ -66,7 +66,7 @@ body {
     border-radius: 25px;
 }
 
-.slider3 {
+#BRange {
     -webkit-appearance: none; /* Override default CSS styles */
     width: 200px;
     height: 20px;
@@ -78,7 +78,19 @@ body {
     border-radius: 25px;
 }
 
-.slider4 {
+#ARange {
+    -webkit-appearance: none; /* Override default CSS styles */
+    width: 200px;
+    height: 20px;
+    background: #ffffff;
+    outline: none;
+    opacity: 0.8; /* Set transparency (for mouse-over effects on hover) */
+    -webkit-transition: .0s; /* 0.2 seconds transition on hover */
+    transition: opacity .0s;
+    border-radius: 25px;
+}
+
+#ERange {
     -webkit-appearance: none; /* Override default CSS styles */
     width: 200px;
     height: 20px;
@@ -92,7 +104,7 @@ body {
 
 .slider5 {
     -webkit-appearance: none; /* Override default CSS styles */
-    width: 200px;
+    width: 180px;
     height: 20px;
     background: #ffffff;
     outline: none;
@@ -104,7 +116,7 @@ body {
 
 .slider6 {
     -webkit-appearance: none; /* Override default CSS styles */
-    width: 200px;
+    width: 180px;
     height: 20px;
     background: #ffffff;
     outline: none;
@@ -117,61 +129,6 @@ body {
 /* Mouse-over effects */
 .slider:hover {
     opacity: 10; /* Fully shown on mouse-over */
-}
-
-
-.slider {
-    -webkit-appearance: none;
-    width: 180px; /* Set a specific slider handle width */
-    height: 20px; /* Slider handle height */
-    background-color: red; /* Green background */
-    cursor: pointer; /* Cursor on hover */
-    border-radius: 25px;
-}
-
-.slider2 {
-    -webkit-appearance: none;
-    width: 180px; /* Set a specific slider handle width */
-    height: 20px; /* Slider handle height */
-    background-color: green; /* Green background */
-    cursor: pointer; /* Cursor on hover */
-    border-radius: 25px;
-}
-
-.slider3 {
-    -webkit-appearance: none;
-    width: 180px; /* Set a specific slider handle width */
-    height: 20px; /* Slider handle height */
-    background-color: blue; /* Green background */
-    cursor: pointer; /* Cursor on hover */
-    border-radius: 25px;
-}
-
-.slider4 {
-    -webkit-appearance: none;
-    width: 180px; /* Set a specific slider handle width */
-    height: 20px; /* Slider handle height */
-    background-color: white; /* Green background */
-    cursor: pointer; /* Cursor on hover */
-    border-radius: 25px;
-}
-
-.slider5 {
-    -webkit-appearance: none;
-    width: 180px; /* Set a specific slider handle width */
-    height: 20px; /* Slider handle height */
-    background: #808080; /* Green background */
-    cursor: pointer; /* Cursor on hover */
-    border-radius: 25px;
-}
-
-.slider6 {
-    -webkit-appearance: none;
-    width: 180px; /* Set a specific slider handle width */
-    height: 20px; /* Slider handle height */
-    background: #808080; /* Green background */
-    cursor: pointer; /* Cursor on hover */
-    border-radius: 25px;
 }
 
 #square {
@@ -196,18 +153,60 @@ body {
 .suwaki {
     position: absolute;
     left: 3%;
-    top: 40%;
+    top: 35%;
 }
-
-
 
 .pole1 {
     position: absolute;
-    right: 15%;
+    right: 10%;
     top: 20px;
     border-style: solid;
     border-color: lightblue;
     height: 310px;
+    width: 540px;
+    background-color: darkslategrey;
+}
+
+.pole2 {
+    position: absolute;
+    right: 10%;
+    top: 360px;
+    border-style: solid;
+    border-color: lightblue;
+    height: 250px;
+    width: 540px;
+    background-color: darkslategrey;
+}
+
+.pole3 {
+    position: absolute;
+    right: 10%;
+    top: 640px;
+    border-style: solid;
+    border-color: lightblue;
+    height: 420px;
+    width: 540px;
+    background-color: darkslategrey;
+}
+
+.pole4 {
+    position: absolute;
+    right: 10%;
+    top: 1090px;
+    border-style: solid;
+    border-color: lightblue;
+    height: 420px;
+    width: 540px;
+    background-color: darkslategrey;
+}
+
+.pole5 {
+    position: absolute;
+    right: 10%;
+    top: 1090px;
+    border-style: solid;
+    border-color: lightblue;
+    height: 520px;
     width: 540px;
     background-color: darkslategrey;
 }
@@ -236,20 +235,9 @@ body {
     top: 120px;
 }
 
-.pole2 {
-    position: absolute;
-    right: 15%;
-    top: 360px;
-    border-style: solid;
-    border-color: lightblue;
-    height: 250px;
-    width: 540px;
-    background-color: darkslategrey;
-}
-
 .edytor {
     position: absolute;
-    left: 30%;
+    left: 40%;
     top: 5%;
     font-size: 40px;
     color: lightblue;
@@ -292,9 +280,9 @@ body {
     border-style: solid;
     border-color: lightblue;
     background-color: dimgrey;
-    right: -900px;
+    right: -750px;
     top: 0px;
-    width: 800px;
+    width: 700px;
     bottom: 0px;
 }
 
@@ -302,17 +290,6 @@ body {
     position: absolute;
     width: 100%;
     height: 100%;
-}
-
-.pole3 {
-    position: absolute;
-    right: 15%;
-    top: 640px;
-    border-style: solid;
-    border-color: lightblue;
-    height: 420px;
-    width: 540px;
-    background-color: darkslategrey;
 }
 
 #seedp {
@@ -342,17 +319,6 @@ body {
     border-radius: 10px;
 }
 
-.pole4 {
-    position: absolute;
-    right: 15%;
-    top: 1090px;
-    border-style: solid;
-    border-color: lightblue;
-    height: 420px;
-    width: 540px;
-    background-color: darkslategrey;
-}
-
 .edytordlugi {
     position: absolute;
     left: 24%;
@@ -367,19 +333,6 @@ body {
     left: 33px;
     top: 100px;
 }
-
-.pole5 {
-    position: absolute;
-    right: 15%;
-    top: 1090px;
-    border-style: solid;
-    border-color: lightblue;
-    height: 520px;
-    width: 540px;
-    background-color: darkslategrey;
-}
-
-
 
 .tabelas {
     position: absolute;
