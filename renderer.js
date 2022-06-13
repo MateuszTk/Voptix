@@ -22,9 +22,13 @@ function main() {
 
     fetch('./vertex_shader.glsl').then((response) => response.text()).then((vertex) => {
         fetch('./fragment_shader.glsl').then((response2) => response2.text()).then((fragment) => {
-            init(vertex, fragment, gl, canvas);
+            fetch('./post-processing.glsl').then((pp_response2) => pp_response2.text()).then((pp_fragment) => {
+                fetch('./display.glsl').then((disp_response2) => disp_response2.text()).then((disp_fragment) => {
+                    init(vertex, fragment, gl, canvas, pp_fragment, disp_fragment);
+                });
             });
         });
+    });
 
 }
 
@@ -41,7 +45,7 @@ var angle = glMatrix.vec3.create();
 
 var cursor3D = glMatrix.vec3.create();
 var paint = 0;
-var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, type: true};
+var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, type: true};
 
 const pixelsPerVoxel = 2;
 const size = 128;
@@ -51,6 +55,7 @@ const chunk_map = new Map;
 
 var fb_textures = [];
 var fb;
+var pp_fb;
 var fb_pixels; //uint8array
 
 const octree_depth = 7;
@@ -63,6 +68,10 @@ var brush_lock = true;
 var direction = glMatrix.vec3.create();
 var sensivity = 0.8;
 var speed = 1.0;
+var moved = false;
+
+var prev_rotation = glMatrix.vec3.create();
+var prev_position = glMatrix.vec3.create();
 
 window.onload = main;
 
@@ -213,11 +222,13 @@ window.addEventListener("keydown", function (event) {
             case "KeyW":
             case "ArrowUp":
                 glMatrix.vec3.scaleAndAdd(pos, pos, direction, speed);
+                moved = true;
                 break;
 
             case "KeyS":
             case "ArrowDown":
                 glMatrix.vec3.scaleAndAdd(pos, pos, direction, -speed);
+                moved = true;
                 break;
 
             case "KeyA":
@@ -225,6 +236,7 @@ window.addEventListener("keydown", function (event) {
                 glMatrix.vec3.cross(vec, direction, vec_up);
                 glMatrix.vec3.normalize(vec, vec);
                 glMatrix.vec3.scaleAndAdd(pos, pos, vec, speed);
+                moved = true;
                 break;
 
             case "KeyD":
@@ -232,13 +244,16 @@ window.addEventListener("keydown", function (event) {
                 glMatrix.vec3.cross(vec, direction, vec_up);
                 glMatrix.vec3.normalize(vec, vec);
                 glMatrix.vec3.scaleAndAdd(pos, pos, vec, -speed);
+                moved = true;
                 break;
 
             case "KeyQ":
                 pos[1] -= speed;
+                moved = true;
                 break;
             case "KeyE":
                 pos[1] += speed;
+                moved = true;
                 break;
 
             case "Space":
@@ -365,7 +380,7 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     }
 }
 
-function init(vsSource, fsSource, gl, canvas) {
+function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     for (let x = 0; x < 3; x++) {
         for (let z = 0; z < 3; z++) {
             let chunk = [];
@@ -388,20 +403,18 @@ function init(vsSource, fsSource, gl, canvas) {
         }
     }
 
+
     var textureLoc0 = gl.getUniformLocation(shaderProgram, "noise");
     //pixels.length - texture unit number
     gl.uniform1i(textureLoc0, pixels.length);
     gl.activeTexture(gl.TEXTURE0 + pixels.length);
-    const texturez = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texturez);
-    var random_arr = new Uint8Array(canvas.width * canvas.height * 4);
-    for (let i = 0; i < canvas.width * canvas.height * 4; i++) {
-        random_arr[i] = Math.random() * 255;
-    }
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA,
-        canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE,
-        random_arr);
-    gl.generateMipmap(gl.TEXTURE_2D);
+    const prev_frame = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, prev_frame);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
 
     var textureLoc = gl.getUniformLocation(shaderProgram, "u_textures[0]");
     // Tell the shader to use texture units 0 to pixel.length
@@ -478,38 +491,9 @@ function init(vsSource, fsSource, gl, canvas) {
         gl.COLOR_ATTACHMENT2
     ]);
 
-    var colorFS = `#version 300 es
-    precision mediump float;
 
-    uniform sampler2D color[3];
-    uniform vec2 screen_size;
-
-    out vec4 outColor;
-
-    void main() {
-        /*vec4 lightcoord = texture(color[1], gl_FragCoord.xy/screen_size);
-        vec4 light = vec4(0.0f);
-        const float samples = 20.0f; 
-        float cnt = 0.0f;
-        vec2 pos = vec2(0.0f);
-        for(pos.x = -samples; pos.x < samples; pos.x++){
-            for(pos.y = -samples; pos.y < samples; pos.y++){
-                vec4 t = texture(color[1], clamp((pos+gl_FragCoord.xy)/screen_size, 0.0f, 1.0f));
-                if(lightcoord.xyz == t.xyz){
-                    cnt++;
-                    light += texture(color[2], clamp((pos+gl_FragCoord.xy)/screen_size, 0.0f, 1.0f)) * 2.0f;
-                }
-            }
-        }
-        light /= vec4(cnt);
-        light += texture(color[0], gl_FragCoord.xy/screen_size);
-        clamp(light, 0.0f, 1.0f);
-        outColor = light;*/
-        //vec4 col = texture(color[0], vec2(gl_FragCoord.x/screen_size.x, gl_FragCoord.y/screen_size.y));
-        outColor = texture(color[0], vec2(gl_FragCoord.x/screen_size.x, gl_FragCoord.y/screen_size.y));//mix(vec4(0.6f, 0.6f, 0.6f, 1.0f), col, pow(0.98f,col.w * 200.0f));//
-    }
-    `;
-    const canvasShaderProgram = initShaderProgram(gl, vsSource, colorFS);
+    //----shader program for post-processing----//
+    const canvasShaderProgram = initShaderProgram(gl, vsSource, pp_fragment);
     initBuffers(gl);
     const colorLoc = gl.getUniformLocation(canvasShaderProgram, "color[0]");
     gl.uniform1iv(colorLoc, [0,1,2]);
@@ -523,17 +507,58 @@ function init(vsSource, fsSource, gl, canvas) {
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
 
+    //output for pp
+    const texture3 = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture3);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    fb_textures.push(texture3);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    //bind otuput for pp and last frame
+    pp_fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, pp_fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture3, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, prev_frame, 0);
+    fb_textures.push(prev_frame);
+
+    gl.drawBuffers([
+        gl.COLOR_ATTACHMENT0,
+        gl.COLOR_ATTACHMENT1
+    ]);
+
     const location = gl.getUniformLocation(canvasShaderProgram, 'screen_size');
     gl.uniform2f(location, canvas.width, canvas.height);
 
+
+    //----shader program for display----//
+    const dispShaderProgram = initShaderProgram(gl, vsSource, disp_fragment);
+    initBuffers(gl);
+    const dispcolorLoc = gl.getUniformLocation(dispShaderProgram, "color");
+    gl.uniform1i(dispcolorLoc, 0);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture3);
+
+    const disp_location = gl.getUniformLocation(dispShaderProgram, 'screen_size');
+    gl.uniform2f(disp_location, canvas.width, canvas.height);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
     fb_pixels = new Uint8Array(4 * canvas.width * canvas.height);
+
+    //test- tmp
+    //updateCamera(gl);
+    //prev_rotation = glMatrix.vec3.clone(rotation);
+    //prev_position = glMatrix.vec3.clone(pos);
 
     //start render loop
     window.requestAnimationFrame(function (timestamp) {
-        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, 0.0);
+        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, 0.0);
     });
 }
 
+//set voxel values in data texture
 function setElement(x, y, z, r, g, b, a, s, e, chunk, level, len) {
     let ind = x * 4 + (y * len + z * len * len) * 8;
     pixels[chunk][level][ind] = r;
@@ -543,33 +568,7 @@ function setElement(x, y, z, r, g, b, a, s, e, chunk, level, len) {
     pixels[chunk][level][ind + len * 4 + 0] = (s & 0b11110000) + (e & 0b00001111);
 }
 
-//color 655
-function setElementEmission(x, y, z, r, g, b, chunk, level, len) {
-    r *= 2.0;
-    g *= 2.0;
-    b *= 2.0;
-    let intensity = 64.0;
-    let ind = (x + y * len + z * len * len) * 8;
-    let or = pixels[chunk][level][ind + 5];//((pixels[chunk][level][ind + 6] & 252) * 255.0 / 252.0);//0b11111100;
-    let og = pixels[chunk][level][ind + 6]; //(((pixels[chunk][level][ind + 6] << 6) & 0b11000000) + ((pixels[chunk][level][ind + 7] & 0b11100000) >> 2) * 255 / 248.0);//0b11111000;
-    let ob = pixels[chunk][level][ind + 7];
-    /*or = Math.floor(clamp((r + or * (intensity - 1.0)) / intensity, 0.0, 255.0));
-    og = Math.floor(clamp((g + og * (intensity - 1.0)) / intensity, 0.0, 255.0));
-    ob = Math.floor(clamp((b + ob * (intensity - 1.0)) / intensity, 0.0, 255.0));
-
-    pixels[chunk][level][ind + 5] = or;
-    pixels[chunk][level][ind + 6] = og;//(or & 0b11111100) + (og >> 6);
-    pixels[chunk][level][ind + 7] = ob;//((og & 0b00111000) << 2) + (ob >> 3);*/
-
-    //or = Math.floor(clamp((r + or * (intensity - 1.0)) / intensity, 0.0, 255.0));
-    //og = Math.floor(clamp((g + og * (intensity - 1.0)) / intensity, 0.0, 255.0));
-    //ob = Math.floor(clamp((b + ob * (intensity - 1.0)) / intensity, 0.0, 255.0));
-
-    pixels[chunk][level][ind + 5] += Math.floor((r - or) / intensity);
-    pixels[chunk][level][ind + 6] += Math.floor((g - og) / intensity);
-    pixels[chunk][level][ind + 7] += Math.floor((b - ob) / intensity);
-}
-
+//set voxel values in the chunk in the given position
 function octree_set(x, y, z, r, g, b, a, s, e, chunk) {
     if (a > 0) {
         // iterate until the mask is shifted to target (leaf) layer
@@ -627,6 +626,10 @@ function updateCamera(gl) {
     cursor[0] = x;
     cursor[1] = y;
 
+    if (Math.abs(delta_x) > 0.0 || Math.abs(delta_y) > 0.0) {
+        moved = true;
+    }
+
     x = angle[0] + delta_x;
     y = angle[1] + delta_y;
 
@@ -682,16 +685,23 @@ var chunk_id_map = [0, 1, 2,
     3, 4, 5,
     6, 7, 8];
 
-function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, time) {
+function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, time) {
     updateCamera(gl);
     const scene = [
         pos[0] + 1.5 * size, pos[1], pos[2] + 1.5 * size,
-        rotation[0], rotation[1], 0.0,
+        rotation[0], rotation[1], (moved ? 255 : 0),
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],
-        canvas.width, canvas.height, 255,//Math.random() * 255,
+        canvas.width, canvas.height, Math.random() * 255,
         3.0 / 255.0, 219.0 / 255.0, 252.0 / 255.0, //background
-        1.2, 0.01, 100000.0 //projection (fov near far)
+        1.2, 0.01, 100000.0, //projection (fov near far)
+        prev_position[0] + 1.5 * size, prev_position[1], prev_position[2] + 1.5 * size,
+        prev_rotation[0], prev_rotation[1], prev_rotation[2]
     ];
+
+    prev_rotation = glMatrix.vec3.clone(rotation);
+    prev_position = glMatrix.vec3.clone(pos);
+    if (moved) moved = false;
+
     gl.useProgram(shaderProgram);
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
 
@@ -707,48 +717,40 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, time) {
     gl.uniform3iv(map_location, chunk_id_map);
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
-
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.viewport(0, 0, canvas.width, canvas.height);
-
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     
     if (paint > 0) {
         gl.readPixels(canvas.width / 2, canvas.height / 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);       
     }
-    //draw lightning data to canvas
-    /*gl.useProgram(canvasShaderProgram);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[1]);
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);*/
-    //gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, fb_pixels);
 
-    //draw to canvas
+    //post-processing
     gl.useProgram(canvasShaderProgram);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, pp_fb);
 
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
 
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[1]);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
 
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    
-    /*let t_len = canvas.width * canvas.height * 4;
-    for (let i = 0; i < t_len; i += 4) {
-        let x = fb_pixels[i];
-        let y = fb_pixels[i + 1];
-        let z = fb_pixels[i + 2];
-        let e = fb_pixels[i + 3];
-        if (x > 0 && y > 0 && z > 0) {
-            let chunkid = Math.floor((x + (chunk_offset[0] + 2) * 64) / 64) % 3 + Math.floor(((z + (chunk_offset[2] + 2) * 64) / 64) % 3) * 3;
-            setElementEmission(Math.floor(x) % 64, Math.floor(y) % 64, Math.floor(z) % 64, e & 0b11100000, (e << 3) & 0b11100000, (e << 6) & 0b11000000, chunkid, 0, 64);//e & 0b11100000, (e << 3) & 0b11100000, (e << 6) & 0b11000000, chunkid, 0, 64);
-            //setElementEmission(Math.floor(x) % 64, Math.floor(y) % 64, Math.floor(z) % 64, 255, 255, 255, chunkid, 0, 64);
-            //setElementEmission(Math.floor(x) % 64, Math.floor(y) % 64, Math.floor(z) % 64, 0, y * 4, 0, chunkid, 0, 64);
-        }
-    }*/
+    //draw to display
+    gl.useProgram(dispShaderProgram);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[3]);
+
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     if (paint > 0) {
         
@@ -781,7 +783,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, time) {
                             if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
                                 if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
                                     let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
-                                    octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, 0, chunkid);
+                                    octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, chunkid);
                                     chunks2send.set(chunkid, 1);
                                 }
                             }
@@ -799,7 +801,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, time) {
                     cursor3D[1] %= size;
                     cursor3D[2] %= size;
                     let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, 0, chunkid);
+                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, chunkid);
                     send_chunk(chunkid, gl);
                 }
             }
@@ -816,7 +818,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, time) {
         else
             fps_time += timestamp - time;
         wait++;
-        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, timestamp);
+        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, timestamp);
     });
 }
 
