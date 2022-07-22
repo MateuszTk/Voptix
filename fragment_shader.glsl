@@ -13,26 +13,34 @@ precision highp sampler3D;
 #define ALPHA 3
 //#define CLARITY 0
 
-const float chunk_size = 128.0f;
+const float chunk_size = 128.0f * 8.0f;
 
 const int chunk_count = 9;
 
 out vec4[3] outColor;
 uniform sampler3D u_textures[chunk_count];
+uniform sampler3D u_palette;
 uniform sampler2D noise;
 uniform vec3[8] scene_data;
 uniform ivec3[3] chunk_map;
 
-vec4 getVoxel(vec3 fpos, float i, float level, out vec2 mask) {
+vec4 getVoxel(vec3 fpos, float level, out vec2 mask) {
+	vec4 fvoxel;
+	vec3 ofpos = fpos;
+	float olevel = level;
+
 	ivec3 pos = ivec3(fpos);
 	ivec3 chu = pos / int(chunk_size);
 	int chunk = chunk_map[chu.z][chu.x];
 
 	fpos /= chunk_size;
 	fpos -= vec3(chu);
-	fpos.x = (fpos.x + i) * 0.5f;
 
-	vec4 fvoxel;
+	//3 lowest levels are subvoxels
+	level -= 3.0f;
+	level = (level < 0.0f) ? 0.0f : level;
+
+
 	if (chunk == 0) {
 		fvoxel = textureLod(u_textures[0], fpos, level);
 		mask.y = textureLod(u_textures[0], fpos, level + 1.0f).w;
@@ -72,6 +80,24 @@ vec4 getVoxel(vec3 fpos, float i, float level, out vec2 mask) {
 
 	mask.x = fvoxel.w;
 
+	if (olevel < 3.0f) {
+		if (fvoxel.w > 0.0f) {
+			ofpos = fract(ofpos / vec3(8.0f, 8.0f, 8.0f));
+			ofpos.x /= 256.0f;
+			ofpos.x += fvoxel.x * (255.0f / 256.0f);
+
+			fvoxel = textureLod(u_palette, ofpos, olevel);
+			mask.y = textureLod(u_palette, ofpos, olevel + 1.0f).w;
+			mask.x = fvoxel.w;
+		}
+		else {
+			//mask.x is already 0
+			mask.x = 0.0f;
+			mask.y = 0.0f;
+		}
+	}
+
+	
 	return fvoxel;
 }
 
@@ -148,7 +174,7 @@ void Bounce(inout Ray ray, vec3 hit, vec3 box_pos, float size) {
 }
 
 // draw single pixel queried from octree with a 3D ray
-void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout vec4 matoutput, int octree_depth, inout vec3 box_pos) {
+void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout vec4 matoutput, inout vec3 box_pos) {
 
 	vec3 ndir = ray.dir;
 
@@ -174,7 +200,7 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 	while (!vHit && dist < max_dist) {
 		move = true;
 		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * 3.0f && testPos.y < chunk_size && testPos.z < chunk_size * 3.0f) {
-			getVoxel(testPos, 0.0f, layer, mask);
+			getVoxel(testPos, layer, mask);
 			if (mask.x > 0.0f) {
 				if (layer == 0.0f) {
 					//found intersection
@@ -189,8 +215,8 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 			}
 			else if (mask.y <= 0.0f) {
 				//nothing nearby - speed up
-				cellSize = clamp(cellSize * 2.0f, 1.0f, 64.0f);
-				layer = clamp(layer + 1.0f, 0.0f, 6.0f);
+				cellSize = clamp(cellSize * 2.0f, 1.0f, 512.0f);
+				layer = clamp(layer + 1.0f, 0.0f, 9.0f);
 			}
 		}
 		if (move) {
@@ -205,10 +231,13 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 
 
 	if (dist < max_dist && vHit) {
-		max_dist = dist;
+		max_dist = dist;		
 
-		vec4 vox = getVoxel(testPos, 0.0f, 0.0f, mask);
-		vec4 vox_mat = getVoxel(testPos, 1.0f, 0.0f, mask);
+		//get material
+		float palette_id = getVoxel(testPos, 3.0f, mask).r;
+		vec4 vox_mat = textureLod(u_palette, vec3(palette_id, 0.5f, 0.5f), 3.0f);//getVoxel(testPos, 1.0f, 0.0f, mask);
+
+		vec4 vox = getVoxel(testPos, 0.0f, mask);
 		voutput.x = vox.x;
 		voutput.y = vox.y;
 		voutput.z = vox.z;
@@ -226,7 +255,7 @@ bool occlusion(vec3 delta_pos, vec3 box_pos, int scx, int scz) {
 	vec3 test = box_pos + delta_pos;
 	if (test.y < 0.0f || test.y >= chunk_size) return false;
 	vec2 mask;
-	return (getVoxel(test, 0.0f, 0.0f, mask).w > 0.0f);
+	return (getVoxel(test, 0.0f, mask).w > 0.0f);
 }
 
 void main() {
@@ -246,15 +275,13 @@ void main() {
 
 	float fov = tan(scene.projection.x / 2.0f);
 	float near = scene.projection.y;
-	float far = 255.0f;//scene.projection.z;
+	float far = 255.0f * 8.0f;//scene.projection.z;
 
 	const float ray_retreat = 0.01f;
 
 	Ray ray;
 	load_primary_ray(ray, scene, pos, scene.screen.x, scene.screen.y, fov);
 	Ray primary_ray = ray;
-
-	int octree_depth = 6;
 
 	vec4 prevmat = vec4(0, 0, 0, 0);
 	vec4 tmpmat = vec4(0, 0, 0, 0);
@@ -276,12 +303,12 @@ void main() {
 		for (int spp = 0; spp < samples; spp++) {
 
 			vec4 color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
-			float max_dist = far;
+			float max_dist = (spp < 2) ? (far) : (far / 2.0f);
 
 			float tmp_dist = 0.0f;
 
 			vec3 box_pos_t = vec3(-1, -1, -1);
-			octree_get_pixel(ray, max_dist, color, tmpmat, octree_depth, box_pos_t);
+			octree_get_pixel(ray, max_dist, color, tmpmat, box_pos_t);
 			if (spp == 0 && box_pos_t.x != -1.0f) {
 				box_pos = box_pos_t;
 				vmat = tmpmat;
@@ -378,7 +405,7 @@ void main() {
 			pixel_color = ray_pixel_color;
 
 			//AO
-			const float size = 0.5f;
+			/*const float size = 0.5f;
 			if (ray_pixel_color.w < far) {
 				bool a = hit.x >= box_pos.x + size;
 				bool b = hit.x <= box_pos.x - size;
@@ -447,15 +474,7 @@ void main() {
 					}
 				}
 				pixel_color = mix(pixel_color, vec4(0.0f, 0.0f, 0.0f, ray_pixel_color.w), pow(shade, 2.0f) * 0.1f);
-			}
-			
-			//pixel_color.x = clamp(vmat.y + pixel_color.x, 0.0f, 1.0f);
-			//pixel_color.y = clamp(vmat.z + pixel_color.y, 0.0f, 1.0f);
-			//pixel_color.z = clamp(vmat.w + pixel_color.z, 0.0f, 1.0f);
-
-			//pixel_color.x = vmat.y;
-			//pixel_color.y = vmat.z;
-			//pixel_color.z = vmat.w;
+			}*/
 		}
 		else {
 			float intensity = float(int(prevmat.x * 255.0f) & 240) / 100.0f;

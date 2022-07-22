@@ -47,10 +47,14 @@ var cursor3D = glMatrix.vec3.create();
 var paint = 0;
 var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, type: true};
 
-const pixelsPerVoxel = 2;
+const pixelsPerVoxel = 1;
 const size = 128;
-const pixels = [];
+const subSize = 8;
+var pixels = [];
 var textures = [];
+var palette = [];
+var palette_used = 0;
+var pal_size = 256;
 const chunk_map = new Map;
 
 var fb_textures = [];
@@ -290,7 +294,7 @@ function send_chunk(i, gl) {
     let msize = size;
     for (let c = 0; c < octree_depth + 1; c++) {
         gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
-            msize * 2, msize, msize, 0, srcFormat, srcType,
+            msize * pixelsPerVoxel, msize, msize, 0, srcFormat, srcType,
             pixels[i][c]);
         msize /= 2;
     }
@@ -360,12 +364,13 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
                             }
 
                             if (clp > 0)
-                                octree_set(_x, _y, _z, r, g, b, 255, 0, 0, i);
+                                octree_set(_x, _y, _z, 0, g, b, 255, i);
                             else if (_y < 1) {
                                 r = 0;
                                 b = 240;
                                 g = clamp((value + 255) / 2, 0, 240);
-                                octree_set(_x, _y, _z, r, g, b, 255, 20, 0, i);
+                                //addToPalette(0, g, b, 20, 0);
+                                octree_set(_x, _y, _z, 0, g, b, 255, i);
                             }
 
                         }
@@ -403,7 +408,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
         }
     }
 
-
+    //lighting data from previous frame
     var textureLoc0 = gl.getUniformLocation(shaderProgram, "noise");
     //pixels.length - texture unit number
     gl.uniform1i(textureLoc0, pixels.length);
@@ -432,19 +437,99 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
         gl.bindTexture(gl.TEXTURE_3D, texture);
         textures.push(texture);
         gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
-            size * 2, size, size, 0, srcFormat, srcType,
+            size * pixelsPerVoxel, size, size, 0, srcFormat, srcType,
             pixels[i][0]);
         gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.generateMipmap(gl.TEXTURE_3D);
         let msize = size / 2;
         for (let c = 1; c <= octree_depth; c++) {
             gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
-                msize * 2, msize, msize, 0, srcFormat, srcType,
+                msize * pixelsPerVoxel, msize, msize, 0, srcFormat, srcType,
                 pixels[i][c]);
             msize /= 2;
         }
         gl.bindTexture(gl.TEXTURE_3D, texture);
     }
+
+    //voxel palette
+    var textureLocPal = gl.getUniformLocation(shaderProgram, "u_palette");
+    //pixels.length + 1, because we want to use texture unit after chunk data (pixels.length) and previous frame data (+1)
+    //TODO - pixels.length is probably equal to 10 which means I use 2 more texture units over count guaranteed by specification
+    gl.uniform1i(textureLocPal, pixels.length + 1);
+    gl.activeTexture(gl.TEXTURE0 + pixels.length + 1);
+    const pal_texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_3D, pal_texture);
+    gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
+        8 * pal_size, 8, 8, 0, srcFormat, srcType,
+        null);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.generateMipmap(gl.TEXTURE_3D);
+    let msize = subSize;
+    //edge 2 ^ 3 = 8 voxels
+    let palette_oc_depth = 3;
+    for (let c = 0; c <= palette_oc_depth; c++) {
+        palette.push(new Uint8Array(msize * msize * msize * 4 * pal_size));
+        //palette[c].fill(0xff, 0, msize * msize * msize * 4 * 256);
+        msize /= 2;
+    }
+
+    
+    //palSetElement(7, 7, 7, 255, 0, 0, 255, 0, c, subSize);
+   // pal_octree_set(0, 0, 0, 255, 0, 0, 255, 0);
+   // pal_octree_set(7, 7, 7, 255, 0, 0, 255, 0);
+    for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+            for (let z = 0; z < 8; z++) {
+                //if (!(y % 2 == 1 && (z == 7 || x == 7 || z == 0|| x == 0)))
+                if(!(x % 2 == 0 && (y == 0 || y == 7) && z % 2 == 0))
+                    pal_octree_set(x, y, z, x * 32, y * 32, z * 32, 255, 0, 0, 0);
+            }
+        }
+    }
+
+    for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+            for (let z = 0; z < 8; z++) {
+                //if (!(y % 2 == 1 && (z == 7 || x == 7 || z == 0|| x == 0)))
+                if ((x % 2 == 0 && (y % 2 == 0) && z % 2 == 0))
+                    pal_octree_set(x, y, z, x * 32, y * 32, z * 32, 255, 0, 0, 1);
+            }
+        }
+    }
+
+    for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+            for (let z = 0; z < 8; z++) {
+                //if (!(y % 2 == 1 && (z == 7 || x == 7 || z == 0|| x == 0)))
+                if ((x % 2 == 0 && (y % 2 == 0) && z % 2 == 0))
+                    pal_octree_set(x, y, z, x * 32, y * 32, z * 32, 255, 255, 0, 2);
+            }
+        }
+    }
+
+    for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+            for (let z = 0; z < 8; z++) {
+                //if (!(y % 2 == 1 && (z == 7 || x == 7 || z == 0|| x == 0)))
+                if ((x % 2 == 0 && (y % 2 == 0) && z % 2 == 0))
+                    pal_octree_set(x, y, z, x * 32, y * 32, z * 32, 255, 0, 255, 3);
+            }
+        }
+    }
+
+    //palSetElement(7, 7, 7, 0, 0, 0, 0, 0, 0, subSize);
+    //palSetElement(3, 3, 7, 0, 0, 0, 0, 0, 0, subSize);
+    //for (let z = 0; z < 8; z++) 
+    //palSetElement(z, 7, 7, 0, 0, 0, 0, 0, 0, subSize);
+
+    msize = subSize;
+    for (let c = 0; c <= palette_oc_depth; c++) {
+        gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
+            msize * pal_size, msize, msize, 0, srcFormat, srcType,
+            palette[c]);
+        msize /= 2;
+    }
+    gl.bindTexture(gl.TEXTURE_3D, pal_texture);
 
     // Get the attribute location
     var coord = gl.getAttribLocation(shaderProgram, "coordinates");
@@ -558,25 +643,52 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     });
 }
 
+function addToPalette(r, g, b, s, e) {
+    for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+            for (let z = 0; z < 8; z++) {
+                pal_octree_set(x, y, z, r, g, b, 255, s, e, palette_used);
+            }
+        }
+    }
+    palette_used++;
+    return palette_used;
+}
+
+function palSetElement(x, y, z, r, g, b, a, slot, level, len) {
+    x += slot * len;
+    let ind = (x + (y * len + z * len * len) * pal_size) * 4;
+    palette[level][ind] = r;
+    palette[level][ind + 1] = g;
+    palette[level][ind + 2] = b;
+    palette[level][ind + 3] = a;
+}
+
+function pal_octree_set(x, y, z, r, g, b, a, s, e, slot) {
+    palSetElement(x, y, z, r, g, b, a, slot, 0, 8);
+    palSetElement(x >> 1, y >> 1, z >> 1, r, g, b, a, slot, 1, 4);
+    palSetElement(x >> 2, y >> 2, z >> 2, r, g, b, a, slot, 2, 2);
+    palSetElement(0, 0, 0, (s & 0b11110000) + (e & 0b00001111), 0, 0, 255, slot, 3, 1);
+}
+
 //set voxel values in data texture
-function setElement(x, y, z, r, g, b, a, s, e, chunk, level, len) {
-    let ind = x * 4 + (y * len + z * len * len) * 8;
+function setElement(x, y, z, r, g, b, a, chunk, level, len) {
+    let ind = x * 4 + (y * len + z * len * len) * 4 * pixelsPerVoxel;
     pixels[chunk][level][ind] = r;
     pixels[chunk][level][ind + 1] = g;
     pixels[chunk][level][ind + 2] = b;
     pixels[chunk][level][ind + 3] = a;
-    pixels[chunk][level][ind + len * 4 + 0] = (s & 0b11110000) + (e & 0b00001111);
 }
 
 //set voxel values in the chunk in the given position
-function octree_set(x, y, z, r, g, b, a, s, e, chunk) {
+function octree_set(x, y, z, r, g, b, a, chunk) {
     if (a > 0) {
         // iterate until the mask is shifted to target (leaf) layer
         let xo = 0, yo = 0, zo = 0;
         let pow2 = 1;
         let csize = size;
         for (let depth = 0; depth < octree_depth; depth++) {
-            let ind = (xo >> (octree_depth - depth)) * 4 + ((yo >> (octree_depth - depth)) * pow2 + (zo >> (octree_depth - depth)) * pow2 * pow2) * 8;
+            let ind = (xo >> (octree_depth - depth)) * 4 + ((yo >> (octree_depth - depth)) * pow2 + (zo >> (octree_depth - depth)) * pow2 * pow2) * 4 * pixelsPerVoxel;
 
             csize /= 2;
 
@@ -594,10 +706,10 @@ function octree_set(x, y, z, r, g, b, a, s, e, chunk) {
 
             pow2 *= 2;
         }
-        setElement(x, y, z, r, g, b, a, s, e, chunk, 0, size);
+        setElement(x, y, z, r, g, b, a, chunk, 0, size);
     }
     else {
-        setElement(x, y, z, r, g, b, 0, s, e, chunk, 0, size);
+        setElement(x, y, z, r, g, b, 0, chunk, 0, size);
         let xo = x, yo = y, zo = z;
         let pow2 = 0.5 * size;
         let cut_branches = true;
@@ -608,7 +720,7 @@ function octree_set(x, y, z, r, g, b, a, s, e, chunk) {
             zo >>= 1;
             oc = (((x >> depth) & 1) * 1) + (((y >> depth) & 1) * 2) + (((z >> depth) & 1) * 4);
 
-            let ind = xo * 4 + (yo * pow2 + zo * pow2 * pow2) * 8;
+            let ind = xo * 4 + (yo * pow2 + zo * pow2 * pow2) * 4 * pixelsPerVoxel;
             if (cut_branches)
                 pixels[chunk][depth + 1][ind + 3] &= ~(1 << oc);
             if (pixels[chunk][depth + 1][ind + 3] != 0) cut_branches = false;
@@ -688,13 +800,13 @@ var chunk_id_map = [0, 1, 2,
 function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, time) {
     updateCamera(gl);
     const scene = [
-        pos[0] + 1.5 * size, pos[1], pos[2] + 1.5 * size,
+        (pos[0] + 1.5 * size) * subSize, (pos[1]) * subSize, (pos[2] + 1.5 * size) * subSize,
         rotation[0], rotation[1], (moved ? 255 : 0),
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],
         canvas.width, canvas.height, Math.random() * 255,
         3.0 / 255.0, 219.0 / 255.0, 252.0 / 255.0, //background
         1.2, 0.01, 100000.0, //projection (fov near far)
-        prev_position[0] + 1.5 * size, prev_position[1], prev_position[2] + 1.5 * size,
+        (prev_position[0] + 1.5 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + 1.5 * size) * subSize,
         prev_rotation[0], prev_rotation[1], prev_rotation[2]
     ];
 
@@ -763,6 +875,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
         }
 
         if (paint < 3) {
+            pixel[3] /= subSize;
             if (paint == 1) {
                 cursor3D[0] = Math.round((pos[0] + 1.5 * size + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5);
                 cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5);
@@ -783,7 +896,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                             if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
                                 if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
                                     let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
-                                    octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, chunkid);
+                                    octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, chunkid);
                                     chunks2send.set(chunkid, 1);
                                 }
                             }
@@ -801,7 +914,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                     cursor3D[1] %= size;
                     cursor3D[2] %= size;
                     let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, chunkid);
+                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0,  chunkid);
                     send_chunk(chunkid, gl);
                 }
             }
