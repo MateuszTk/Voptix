@@ -349,10 +349,10 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
                             let value = noise.simplex3((x + _x) / fx, (y + _y) / fx, (z + _z) / fx) * 255;
                             let clp = clamp(value + 0, 0, 255);
 
-                            let r = clamp(value, 20, 40) * 5, g = clamp(value, 20, 40) * 5, b = clamp(value, 20, 40) * 5;
+                            let r = 1;//clamp(value, 20, 40) * 5, g = clamp(value, 20, 40) * 5, b = clamp(value, 20, 40) * 5;
 
                             // grass layer
-                            if (_y > surface - 4) {
+                            if (_y > surface - 1) {
                                 r = 0; b = 0;
                                 g = clamp(value, 150, 200);
                             }
@@ -360,17 +360,17 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
                             // dirt layer
                             else if (_y > surface - 8) {
                                 g = 60; b = 0;
-                                r = clamp(value, 90, 180);
+                                r = 2;//clamp(value, 90, 180);
                             }
 
                             if (clp > 0)
-                                octree_set(_x, _y, _z, 0, g, b, 255, i);
+                                octree_set(_x, _y, _z, r, g, b, 255, i);
                             else if (_y < 1) {
                                 r = 0;
                                 b = 240;
                                 g = clamp((value + 255) / 2, 0, 240);
                                 //addToPalette(0, g, b, 20, 0);
-                                octree_set(_x, _y, _z, 0, g, b, 255, i);
+                                octree_set(_x, _y, _z, 3, g, b, 255, i);
                             }
 
                         }
@@ -384,6 +384,11 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
         send_chunk(i, gl);
     }
 }
+
+function getRandomArbitrary(min, max) {
+    return Math.random() * (max - min) + min;
+}
+
 
 function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     for (let x = 0; x < 3; x++) {
@@ -477,22 +482,24 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     //palSetElement(7, 7, 7, 255, 0, 0, 255, 0, c, subSize);
    // pal_octree_set(0, 0, 0, 255, 0, 0, 255, 0);
    // pal_octree_set(7, 7, 7, 255, 0, 0, 255, 0);
-    for (let x = 0; x < 8; x++) {
+    /*for (let x = 0; x < 8; x++) {
         for (let y = 0; y < 8; y++) {
             for (let z = 0; z < 8; z++) {
                 //if (!(y % 2 == 1 && (z == 7 || x == 7 || z == 0|| x == 0)))
-                if(!(x % 2 == 0 && (y == 0 || y == 7) && z % 2 == 0))
+                if (!(x % 2 == 0 && (y == 0 || y == 7) && z % 2 == 0))
                     pal_octree_set(x, y, z, x * 32, y * 32, z * 32, 255, 0, 0, 0);
             }
         }
-    }
-
+    }*/
     for (let x = 0; x < 8; x++) {
         for (let y = 0; y < 8; y++) {
-            for (let z = 0; z < 8; z++) {
-                //if (!(y % 2 == 1 && (z == 7 || x == 7 || z == 0|| x == 0)))
-                if ((x % 2 == 0 && (y % 2 == 0) && z % 2 == 0))
-                    pal_octree_set(x, y, z, x * 32, y * 32, z * 32, 255, 0, 0, 1);
+            for (let z = 4; z < 8; z++) {
+                if (Math.random() < 0.5)
+                    pal_octree_set(x, z, y, 0, 200, 0, 255, 0, 0, 0);
+            }
+
+            for (let z = 0; z < 4; z++) {
+                pal_octree_set(x, z, y, getRandomArbitrary(80, 110), 42, 0, 255, 0, 0, 0);
             }
         }
     }
@@ -500,9 +507,9 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     for (let x = 0; x < 8; x++) {
         for (let y = 0; y < 8; y++) {
             for (let z = 0; z < 8; z++) {
-                //if (!(y % 2 == 1 && (z == 7 || x == 7 || z == 0|| x == 0)))
-                if ((x % 2 == 0 && (y % 2 == 0) && z % 2 == 0))
-                    pal_octree_set(x, y, z, x * 32, y * 32, z * 32, 255, 255, 0, 2);
+                let color = getRandomArbitrary(60, 180);
+                if (Math.random() < 0.5)
+                    pal_octree_set(x, z, y, color, color, color, 255, 0, 0, 1);
             }
         }
     }
@@ -510,17 +517,32 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     for (let x = 0; x < 8; x++) {
         for (let y = 0; y < 8; y++) {
             for (let z = 0; z < 8; z++) {
-                //if (!(y % 2 == 1 && (z == 7 || x == 7 || z == 0|| x == 0)))
-                if ((x % 2 == 0 && (y % 2 == 0) && z % 2 == 0))
-                    pal_octree_set(x, y, z, x * 32, y * 32, z * 32, 255, 0, 255, 3);
+                pal_octree_set(x, z, y, getRandomArbitrary(80, 110), 42, 0, 255, 0, 0, 2);
             }
         }
     }
 
-    //palSetElement(7, 7, 7, 0, 0, 0, 0, 0, 0, subSize);
-    //palSetElement(3, 3, 7, 0, 0, 0, 0, 0, 0, subSize);
-    //for (let z = 0; z < 8; z++) 
-    //palSetElement(z, 7, 7, 0, 0, 0, 0, 0, 0, subSize);
+    for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+            for (let z = 0; z < 8; z++) {
+                pal_octree_set(x, z, y, 0, Math.random() * 120, 255, 255, Math.random() * 255, 0, 3);
+            }
+        }
+    }
+
+    for (let x = 3; x < 4; x++) {
+        for (let y = 0; y < 6; y++) {
+            for (let z = 3; z < 4; z++) {
+                pal_octree_set(x, y, z, getRandomArbitrary(100, 120), 42, 0, 255, Math.random() * 255, 0, 4);
+            }
+        }
+
+        for (let y = 6; y < 8; y++) {
+            for (let z = 3; z < 4; z++) {
+                pal_octree_set(x, y, z, 255, 100, 0, 255, 0, 255, 4);
+            }
+        }
+    }
 
     msize = subSize;
     for (let c = 0; c <= palette_oc_depth; c++) {
@@ -692,8 +714,17 @@ function octree_set(x, y, z, r, g, b, a, chunk) {
 
             csize /= 2;
 
-            let oc = 0;
+            for (let xs = 0; xs < 2; xs++)
+                for (let ys = 0; ys < 2; ys++)
+                    for (let zs = 0; zs < 2; zs++) {
+                        let nc = (x >> (octree_depth - depth)) * 2 + xs +
+                            ((y >> (octree_depth - depth)) * 2 + ys) * pow2 * 2 +
+                            ((z >> (octree_depth - depth)) * 2 + zs) * pow2 * pow2 * 4;
+                        pixels[chunk][octree_depth - 1 - depth][nc * 4 + 1] = 254;
+                    }
+           
 
+            let oc = 0;
             xo += (((x >> (octree_depth - 1 - depth)) & 1) > 0) * csize;
             yo += (((y >> (octree_depth - 1 - depth)) & 1) > 0) * csize;
             zo += (((z >> (octree_depth - 1 - depth)) & 1) > 0) * csize;
@@ -701,29 +732,38 @@ function octree_set(x, y, z, r, g, b, a, chunk) {
             pixels[chunk][octree_depth - depth][ind + 3] |= 1 << oc;
 
             pixels[chunk][octree_depth - depth][ind] = r;
-            pixels[chunk][octree_depth - depth][ind + 1] = g;
-            pixels[chunk][octree_depth - depth][ind + 2] = b;
 
             pow2 *= 2;
         }
-        setElement(x, y, z, r, g, b, a, chunk, 0, size);
+        setElement(x, y, z, r, 254, b, a, chunk, 0, size);
     }
     else {
-        setElement(x, y, z, r, g, b, 0, chunk, 0, size);
+        setElement(x, y, z, r, 254, b, 0, chunk, 0, size);
         let xo = x, yo = y, zo = z;
         let pow2 = 0.5 * size;
         let cut_branches = true;
         for (let depth = 0; depth < octree_depth; depth++) {
-            
+
             xo >>= 1;
             yo >>= 1;
             zo >>= 1;
             oc = (((x >> depth) & 1) * 1) + (((y >> depth) & 1) * 2) + (((z >> depth) & 1) * 4);
 
             let ind = xo * 4 + (yo * pow2 + zo * pow2 * pow2) * 4 * pixelsPerVoxel;
-            if (cut_branches)
+            if (cut_branches) {
                 pixels[chunk][depth + 1][ind + 3] &= ~(1 << oc);
-            if (pixels[chunk][depth + 1][ind + 3] != 0) cut_branches = false;
+                if (depth > 0) {
+                    for (let xs = 0; xs < 2; xs++)
+                        for (let ys = 0; ys < 2; ys++)
+                            for (let zs = 0; zs < 2; zs++) {
+                                let nc = ((x >> (depth)) << 1) + xs +
+                                    (((y >> (depth)) << 1) + ys) * pow2 * 4 +
+                                    (((z >> (depth)) << 1) + zs) * pow2 * pow2 * 16;
+                                pixels[chunk][(depth - 1)][nc * 4 + 1] = 0;
+                            }
+                }
+            }
+            if (pixels[chunk][depth + 1][ind + 3] != 0) { cut_branches = false; }
             pow2 /= 2;
         }
     }

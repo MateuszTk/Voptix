@@ -51,5 +51,5 @@ void main() {
     vec4 outColorPrep = clamp(prim * (0.5f + light), 0.0f, 1.0f);
     outColorPrep.w = prim.w;
     //light = clamp(texture(color[0], gl_FragCoord.xy / screen_size) * (0.5f + light), 0.0f, 1.0f);
-    outColor[0] = outColorPrep;
+    outColor[0] = outColorPrep;//prim;//prim for debug
 }

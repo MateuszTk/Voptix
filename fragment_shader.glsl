@@ -24,6 +24,8 @@ uniform sampler2D noise;
 uniform vec3[8] scene_data;
 uniform ivec3[3] chunk_map;
 
+int debug_cnt = 0;
+
 vec4 getVoxel(vec3 fpos, float level, out vec2 mask) {
 	vec4 fvoxel;
 	vec3 ofpos = fpos;
@@ -43,42 +45,34 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask) {
 
 	if (chunk == 0) {
 		fvoxel = textureLod(u_textures[0], fpos, level);
-		mask.y = textureLod(u_textures[0], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 1) {
 		fvoxel = textureLod(u_textures[1], fpos, level);
-		mask.y = textureLod(u_textures[1], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 2) {
 		fvoxel = textureLod(u_textures[2], fpos, level);
-		mask.y = textureLod(u_textures[2], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 3) {
 		fvoxel = textureLod(u_textures[3], fpos, level);
-		mask.y = textureLod(u_textures[3], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 4) {
 		fvoxel = textureLod(u_textures[4], fpos, level);
-		mask.y = textureLod(u_textures[4], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 5) {
 		fvoxel = textureLod(u_textures[5], fpos, level);
-		mask.y = textureLod(u_textures[5], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 6) {
 		fvoxel = textureLod(u_textures[6], fpos, level);
-		mask.y = textureLod(u_textures[6], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 7) {
 		fvoxel = textureLod(u_textures[7], fpos, level);
-		mask.y = textureLod(u_textures[7], fpos, level + 1.0f).w;
 	}
 	else if (chunk == 8) {
 		fvoxel = textureLod(u_textures[8], fpos, level);
-		mask.y = textureLod(u_textures[8], fpos, level + 1.0f).w;
 	}
 
 	mask.x = fvoxel.w;
+	mask.y = fvoxel.y;
 
 	if (olevel < 3.0f) {
 		if (fvoxel.w > 0.0f) {
@@ -92,7 +86,6 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask) {
 		}
 		else {
 			//mask.x is already 0
-			mask.x = 0.0f;
 			mask.y = 0.0f;
 		}
 	}
@@ -198,6 +191,7 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 	bool move = true;
 	vec2 mask;
 	while (!vHit && dist < max_dist) {
+		debug_cnt++;
 		move = true;
 		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * 3.0f && testPos.y < chunk_size && testPos.z < chunk_size * 3.0f) {
 			getVoxel(testPos, layer, mask);
@@ -218,6 +212,9 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 				cellSize = clamp(cellSize * 2.0f, 1.0f, 512.0f);
 				layer = clamp(layer + 1.0f, 0.0f, 9.0f);
 			}
+		}
+		else {
+			break;
 		}
 		if (move) {
 			pos_floor = floor(testPos / cellSize) * cellSize;
@@ -292,6 +289,7 @@ void main() {
 	scene.background = mix(vec3(184, 242, 255) / 255.0f, vec3(0, 162, 255) / 255.0f, ray.dir.y * 0.5f);
 	vec4 pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
 	vec3 primary_hit = vec3(0.0f);
+	int deb_cnt_loc = 0;
 
 	for (int bounces = 0; bounces < 3; bounces++) {
 		vec4 ray_pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
@@ -309,6 +307,9 @@ void main() {
 
 			vec3 box_pos_t = vec3(-1, -1, -1);
 			octree_get_pixel(ray, max_dist, color, tmpmat, box_pos_t);
+			if (spp == 0 && bounces == 0)
+				deb_cnt_loc = debug_cnt;
+
 			if (spp == 0 && box_pos_t.x != -1.0f) {
 				box_pos = box_pos_t;
 				vmat = tmpmat;
@@ -405,7 +406,7 @@ void main() {
 			pixel_color = ray_pixel_color;
 
 			//AO
-			/*const float size = 0.5f;
+			const float size = 0.5f;
 			if (ray_pixel_color.w < far) {
 				bool a = hit.x >= box_pos.x + size;
 				bool b = hit.x <= box_pos.x - size;
@@ -474,7 +475,7 @@ void main() {
 					}
 				}
 				pixel_color = mix(pixel_color, vec4(0.0f, 0.0f, 0.0f, ray_pixel_color.w), pow(shade, 2.0f) * 0.1f);
-			}*/
+			}
 		}
 		else {
 			float intensity = float(int(prevmat.x * 255.0f) & 240) / 100.0f;
@@ -540,7 +541,7 @@ void main() {
 	
 
 	//color output
-	
+	//pixel_color.rgb = vec3(float(deb_cnt_loc) / 100.0f);
 	outColor[0] = pixel_color;
 
 	//normals
