@@ -21,6 +21,7 @@ out vec4[3] outColor;
 uniform sampler3D u_textures[chunk_count];
 uniform sampler3D u_palette;
 uniform sampler2D noise;
+uniform sampler2D light_low;
 uniform vec3[8] scene_data;
 uniform ivec3[3] chunk_map;
 
@@ -355,7 +356,7 @@ void main() {
 					primary_hit = hit;
 				}
 
-				vec4 rnd = vec4(rand(pos + scene.screen.z), rand(pos + vec2(1.0f, 0.0f) + scene.screen.z), rand(pos + vec2(2.0f, 0.0f) + scene.screen.z), 1.0f);//texelFetch(noise, ivec2(pos), 0);
+				vec4 rnd = vec4(rand(pos + scene.screen.z), rand(pos + vec2(1.0f, 0.0f) + scene.screen.z), rand(pos + vec2(2.0f, 0.0f) + scene.screen.z), 1.0f);
 				rnd.x = rnd.x * 2.0f - 1.0f;
 				rnd.y = rnd.y * 2.0f - 1.0f;
 
@@ -494,7 +495,7 @@ void main() {
 	
 	float w = pixel_color.w;
 	pixel_color = clamp(pixel_color, 0.0f, 1.0f);
-	pixel_color.w = clamp(w / 255.0f * 2.0f, 0.0f, 1.0f);
+	pixel_color.w = clamp(w / 255.0f * 2.0f, 0.0f, 255.0f);
 
 	//restore lighting from previous frame
 	vec3 direction = primary_hit - scene.prev_pos;
@@ -525,8 +526,8 @@ void main() {
 	vec4 acc_ill = vec4(-1);
 	vec4 light = vec4(0.0f);
 	if (pixel.x > 0.0f && pixel.y > 0.0f && pixel.y < 1.0f && pixel.x < 1.0) {
-		if (distance(scene.prev_pos + ray_dir * (texture(noise, pixel).w * 255.0f / 2.0f), primary_hit) < 0.5f) {
-			acc_ill = texture(noise, pixel);
+		if (distance(scene.prev_pos + ray_dir * ((texture(noise, pixel).w * 256.0f + texture(light_low, pixel).w) * 255.0f / 2.0f), primary_hit) < 0.5f) {
+			acc_ill = texture(light_low, pixel);
 			light = floor((acc_ill * 20.0f + vec4(illumination.x, illumination.y, illumination.z, 0.0f)) / 21.0f * 255.0f) / 255.0f;
 		}
 		else {
@@ -545,15 +546,19 @@ void main() {
 	outColor[0] = pixel_color;
 
 	//normals
-	vec4 normal = vec4(1.0f);//vec3(ivec3(prim_box_pos) % 255) / 255.0f;
-	normal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f || primary_hit.x <= prim_box_pos.x - 0.5f) ? 1.0f : 0.0f);
-	normal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f || primary_hit.y <= prim_box_pos.y - 0.5f) ? 1.0f : 0.0f);
-	normal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f || primary_hit.z <= prim_box_pos.z - 0.5f) ? 1.0f : 0.0f);
-	outColor[1] = normal;
+	//vec4 normal = vec4(1.0f);//vec3(ivec3(prim_box_pos) % 255) / 255.0f;
+	//normal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f || primary_hit.x <= prim_box_pos.x - 0.5f) ? 1.0f : 0.0f);
+	//normal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f || primary_hit.y <= prim_box_pos.y - 0.5f) ? 1.0f : 0.0f);
+	//normal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f || primary_hit.z <= prim_box_pos.z - 0.5f) ? 1.0f : 0.0f);
+	//outColor[1] = normal;
 
 	//ligting data output
 	
 	
 	light.w = pixel_color.w;
-	outColor[2] = light;
+	//low
+	outColor[1].xyz = light.xyz;
+	outColor[1].w = float(int(light.w * 255.0f) % 256) / 255.0f;
+	//high
+	outColor[2] = vec4(ivec4(light * 255.0f) / 256) / 255.0f;
 }

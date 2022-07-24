@@ -425,6 +425,18 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
+    //lighting data from previous frame
+    var textureLoc2 = gl.getUniformLocation(shaderProgram, "light_low");
+    //pixels.length - texture unit number
+    gl.uniform1i(textureLoc2, pixels.length + 2);
+    gl.activeTexture(gl.TEXTURE0 + pixels.length + 2);
+    const light_low = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, light_low);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
 
     var textureLoc = gl.getUniformLocation(shaderProgram, "u_textures[0]");
     // Tell the shader to use texture units 0 to pixel.length
@@ -459,7 +471,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     //voxel palette
     var textureLocPal = gl.getUniformLocation(shaderProgram, "u_palette");
     //pixels.length + 1, because we want to use texture unit after chunk data (pixels.length) and previous frame data (+1)
-    //TODO - pixels.length is probably equal to 10 which means I use 2 more texture units over count guaranteed by specification
+    //TODO - pixels.length is probably equal to 10 which means I use 3 more texture units over count guaranteed by specification
     gl.uniform1i(textureLocPal, pixels.length + 1);
     gl.activeTexture(gl.TEXTURE0 + pixels.length + 1);
     const pal_texture = gl.createTexture();
@@ -628,11 +640,14 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, pp_fb);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture3, 0);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, prev_frame, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, light_low, 0);
     fb_textures.push(prev_frame);
+    fb_textures.push(light_low);
 
     gl.drawBuffers([
         gl.COLOR_ATTACHMENT0,
-        gl.COLOR_ATTACHMENT1
+        gl.COLOR_ATTACHMENT1,
+        gl.COLOR_ATTACHMENT2
     ]);
 
     const location = gl.getUniformLocation(canvasShaderProgram, 'screen_size');
