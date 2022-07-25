@@ -59,7 +59,7 @@ var pp_fb;
 var fb_pixels; //uint8array
 
 const octree_depth = 7;
-const chunk_size = ((1 - Math.pow(8, (octree_depth + 1))) / -7 ) * 2;
+const chunk_size = ((1 - Math.pow(8, (octree_depth + 1))) / -7) * pixelsPerVoxel;
 
 var locked = false;
 var brush_lock = true;
@@ -614,7 +614,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     if (paint > 0) {
-        
+
         if (paint == 3) {
             brush.color_r = pixel[0];
             brush.color_g = pixel[1];
@@ -625,16 +625,41 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
 
         if (paint < 3) {
             pixel[3] /= subSize;
-            if (paint == 1) {
-                cursor3D[0] = Math.round((pos[0] + 1.5 * size + direction[0] * (pixel[3] / 2.0 - 0.1)) - 0.5);
-                cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 - 0.1)) - 0.5);
-                cursor3D[2] = Math.round((pos[2] + 1.5 * size + direction[2] * (pixel[3] / 2.0 - 0.1)) - 0.5);
+            //place voxel
+            let offset = 0.0;
+            //try moving cursor up to 8 times
+            for (let it = 0; it < 8; it++) {
+                cursor3D[0] = Math.round((pos[0] + 1.5 * size + direction[0] * (pixel[3] / 2.0 + offset)) - 0.5);
+                cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 + offset)) - 0.5);
+                cursor3D[2] = Math.round((pos[2] + 1.5 * size + direction[2] * (pixel[3] / 2.0 + offset)) - 0.5);
+
+                const cx = Math.floor(cursor3D[0] / size);
+                const cz = Math.floor(cursor3D[2] / size);
+                if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
+                    let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
+                    if (paint == 1) {
+                        //place voxel
+                        if (getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[3] > 0) {
+                            offset -= 0.1;
+                        }
+                        else
+                            break;
+                    }
+                    else {
+                        //delete voxel
+                        if (getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[3] <= 0) {
+                            offset += 0.1;
+                        }
+                        else
+                            break;
+                    }
+                }
+                else {
+                    break;
+                }
             }
-            else {
-                cursor3D[0] = Math.round((pos[0] + 1.5 * size + direction[0] * (pixel[3] / 2.0 + 0.2)) - 0.5);
-                cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 + 0.2)) - 0.5);
-                cursor3D[2] = Math.round((pos[2] + 1.5 * size + direction[2] * (pixel[3] / 2.0 + 0.2)) - 0.5);
-            }
+
+
 
             let chunks2send = new Map;
             let r = brush.diameter / 2.0;

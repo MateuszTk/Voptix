@@ -23,6 +23,16 @@ function setElement(x, y, z, r, g, b, a, chunk, level, len) {
     pixels[chunk][level][ind + 3] = a;
 }
 
+//get voxel values from data texture
+function getElement(x, y, z, chunk, level, len) {
+    let ind = x * 4 + (y * len + z * len * len) * 4 * pixelsPerVoxel;
+    return [pixels[chunk][level][ind],
+    pixels[chunk][level][ind + 1],
+    pixels[chunk][level][ind + 2],
+    pixels[chunk][level][ind + 3]
+    ];
+}
+
 //set voxel values in the chunk in the given position
 function octree_set(x, y, z, r, g, b, a, chunk) {
     if (a > 0) {
