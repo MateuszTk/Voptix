@@ -20,20 +20,16 @@ function main() {
         return;
     }
 
-    fetch('./vertex_shader.glsl').then((response) => response.text()).then((vertex) => {
-        fetch('./fragment_shader.glsl').then((response2) => response2.text()).then((fragment) => {
-            fetch('./post-processing.glsl').then((pp_response2) => pp_response2.text()).then((pp_fragment) => {
-                fetch('./display.glsl').then((disp_response2) => disp_response2.text()).then((disp_fragment) => {
+    fetch('./shader/vertex_shader.glsl').then((response) => response.text()).then((vertex) => {
+        fetch('./shader/fragment_shader.glsl').then((response2) => response2.text()).then((fragment) => {
+            fetch('./shader/post-processing.glsl').then((pp_response2) => pp_response2.text()).then((pp_fragment) => {
+                fetch('./shader/display.glsl').then((disp_response2) => disp_response2.text()).then((disp_fragment) => {
                     init(vertex, fragment, gl, canvas, pp_fragment, disp_fragment);
                 });
             });
         });
     });
 
-}
-
-function radians(angle) {
-    return angle * (Math.PI / 180);
 }
 
 var mouseX = 0, mouseY = 0;
@@ -45,15 +41,15 @@ var angle = glMatrix.vec3.create();
 
 var cursor3D = glMatrix.vec3.create();
 var paint = 0;
-var brush = {diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, type: true};
+var brush = { diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, palette_id: 0, type: true };
 
 const pixelsPerVoxel = 1;
 const size = 128;
 const subSize = 8;
 var pixels = [];
 var textures = [];
+var pal_texture;
 var palette = [];
-var palette_used = 0;
 var pal_size = 256;
 const chunk_map = new Map;
 
@@ -78,52 +74,6 @@ var prev_rotation = glMatrix.vec3.create();
 var prev_position = glMatrix.vec3.create();
 
 window.onload = main;
-
-document.addEventListener('pointerlockchange', lockChange, false);
-document.addEventListener('mozpointerlockchange', lockChange, false);
-
-function handleCanvasClick(event) {
-    document.body.requestPointerLock();
-    locked = true;
-    brush_lock = true;
-}
-
-function lockChange() {
-    if (!(document.pointerLockElement === document.body || document.mozPointerLockElement === document.body)) {
-        locked = false;
-        console.log('The pointer lock status is now unlocked');
-    }
-}
-
-document.onmousemove = handleMouseMove;
-function handleMouseMove(event) {
-    if (locked) {
-        mouseX += event.movementX;
-        mouseY += event.movementY;
-    }
-}
-
-document.onmousedown = handleMouseClick;
-function handleMouseClick(event) {
-    if (locked) {
-        if (!brush_lock) {
-            switch (event.button) {
-                case 0:
-                    paint = 1;
-                    break;
-                //sample color
-                case 1:
-                    event.preventDefault();
-                    paint = 3;
-                    break;
-                case 2:
-                    paint = 2;
-                    break;
-            }
-        }
-        else brush_lock = false;
-    }
-}
 
 function save(name) {
 
@@ -215,76 +165,6 @@ function loadFile() {
     input.click();
 }
 
-window.addEventListener("keydown", function (event) {
-    if (locked) {
-        glMatrix.vec3.normalize(direction, direction);
-
-        var vec = glMatrix.vec3.create();
-        var vec_up = glMatrix.vec3.create();
-        vec_up[1] = 1;
-        switch (event.code) {
-            case "KeyW":
-            case "ArrowUp":
-                glMatrix.vec3.scaleAndAdd(pos, pos, direction, speed);
-                moved = true;
-                break;
-
-            case "KeyS":
-            case "ArrowDown":
-                glMatrix.vec3.scaleAndAdd(pos, pos, direction, -speed);
-                moved = true;
-                break;
-
-            case "KeyA":
-            case "ArrowLeft":
-                glMatrix.vec3.cross(vec, direction, vec_up);
-                glMatrix.vec3.normalize(vec, vec);
-                glMatrix.vec3.scaleAndAdd(pos, pos, vec, speed);
-                moved = true;
-                break;
-
-            case "KeyD":
-            case "ArrowRight":
-                glMatrix.vec3.cross(vec, direction, vec_up);
-                glMatrix.vec3.normalize(vec, vec);
-                glMatrix.vec3.scaleAndAdd(pos, pos, vec, -speed);
-                moved = true;
-                break;
-
-            case "KeyQ":
-                pos[1] -= speed;
-                moved = true;
-                break;
-            case "KeyE":
-                pos[1] += speed;
-                moved = true;
-                break;
-
-            case "Space":
-                paint = 1;
-                break;
-
-            case "Enter":
-                document.exitPointerLock();
-                break;
-
-            default:
-                break;
-        }
-    }
-
-}, true);
-
-function resize(swidth, sheight) {
-    localStorage.setItem("swidth", swidth);
-    localStorage.setItem("sheight", sheight);
-}
-
-
-function clamp(num, min, max) {
-    return ((num <= min) ? min : ((num >= max) ? max : num));
-}
-
 function send_chunk(i, gl) {
     const internalFormat = gl.RGBA;
     const srcFormat = gl.RGBA;
@@ -300,14 +180,29 @@ function send_chunk(i, gl) {
     }
 }
 
+function updatePalette() {
+    const internalFormat = gl.RGBA;
+    const srcFormat = gl.RGBA;
+    const srcType = gl.UNSIGNED_BYTE;
+    gl.activeTexture(gl.TEXTURE0 + 11);
+    gl.bindTexture(gl.TEXTURE_3D, pal_texture);
+    
+    //edge 2 ^ 3 = 8 voxels
+    let msize = 8;
+    let palette_oc_depth = 3;
+    for (let c = 0; c <= palette_oc_depth; c++) {
+        gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
+            msize * pal_size, msize, msize, 0, srcFormat, srcType,
+            palette[c]);
+        msize /= 2;
+    }
+}
+
 
 function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     console.log("x" + x + " y" + y + " z" + z);
-
-    noise.seed(8888);//Math.random());
-    const frequency = 2.0;
-    const fx = size / frequency;
-    const fs = 2.0 * size / frequency;
+    let timer_start = Date.now();
+   
     let build_new = true;
     let i = (x % 3) + (z % 3) * 3;
     if (send) {
@@ -338,57 +233,16 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
         x *= size;
         y *= size;
         z *= size;
-        for (let _x = 0; _x < size; _x++) {
-            for (let _z = 0; _z < size; _z++) {
 
-                if (y < 128) {
-                    let surface = noise.simplex2((x + _x) / fs, (z + _z) / fs) * 16 + 48;
-
-                    for (let _y = 0; _y < size; _y++) {
-                        if (_y < surface) {
-                            let value = noise.simplex3((x + _x) / fx, (y + _y) / fx, (z + _z) / fx) * 255;
-                            let clp = clamp(value + 0, 0, 255);
-
-                            let r = 1;//clamp(value, 20, 40) * 5, g = clamp(value, 20, 40) * 5, b = clamp(value, 20, 40) * 5;
-
-                            // grass layer
-                            if (_y > surface - 1) {
-                                r = 0; b = 0;
-                                g = clamp(value, 150, 200);
-                            }
-
-                            // dirt layer
-                            else if (_y > surface - 8) {
-                                g = 60; b = 0;
-                                r = 2;//clamp(value, 90, 180);
-                            }
-
-                            if (clp > 0)
-                                octree_set(_x, _y, _z, r, g, b, 255, i);
-                            else if (_y < 1) {
-                                r = 0;
-                                b = 240;
-                                g = clamp((value + 255) / 2, 0, 240);
-                                //addToPalette(0, g, b, 20, 0);
-                                octree_set(_x, _y, _z, 3, g, b, 255, i);
-                            }
-
-                        }
-                    }
-                }
-            }
-        }
+        chunkFunction(x, y, z, size, i);
     }
     if (send) {
         i = (sendx % 3) + (sendz % 3) * 3;
         send_chunk(i, gl);
     }
-}
 
-function getRandomArbitrary(min, max) {
-    return Math.random() * (max - min) + min;
+    console.log("Took " + (Date.now() - timer_start) + "ms");
 }
-
 
 function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     for (let x = 0; x < 3; x++) {
@@ -474,13 +328,9 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     //TODO - pixels.length is probably equal to 10 which means I use 3 more texture units over count guaranteed by specification
     gl.uniform1i(textureLocPal, pixels.length + 1);
     gl.activeTexture(gl.TEXTURE0 + pixels.length + 1);
-    const pal_texture = gl.createTexture();
+    pal_texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_3D, pal_texture);
-    gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
-        8 * pal_size, 8, 8, 0, srcFormat, srcType,
-        null);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.generateMipmap(gl.TEXTURE_3D);
+
     let msize = subSize;
     //edge 2 ^ 3 = 8 voxels
     let palette_oc_depth = 3;
@@ -490,71 +340,12 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
         msize /= 2;
     }
 
-    
-    //palSetElement(7, 7, 7, 255, 0, 0, 255, 0, c, subSize);
-   // pal_octree_set(0, 0, 0, 255, 0, 0, 255, 0);
-   // pal_octree_set(7, 7, 7, 255, 0, 0, 255, 0);
-    /*for (let x = 0; x < 8; x++) {
-        for (let y = 0; y < 8; y++) {
-            for (let z = 0; z < 8; z++) {
-                //if (!(y % 2 == 1 && (z == 7 || x == 7 || z == 0|| x == 0)))
-                if (!(x % 2 == 0 && (y == 0 || y == 7) && z % 2 == 0))
-                    pal_octree_set(x, y, z, x * 32, y * 32, z * 32, 255, 0, 0, 0);
-            }
-        }
-    }*/
-    for (let x = 0; x < 8; x++) {
-        for (let y = 0; y < 8; y++) {
-            for (let z = 4; z < 8; z++) {
-                if (Math.random() < 0.5)
-                    pal_octree_set(x, z, y, 0, 200, 0, 255, 0, 0, 0);
-            }
-
-            for (let z = 0; z < 4; z++) {
-                pal_octree_set(x, z, y, getRandomArbitrary(80, 110), 42, 0, 255, 0, 0, 0);
-            }
-        }
-    }
-
-    for (let x = 0; x < 8; x++) {
-        for (let y = 0; y < 8; y++) {
-            for (let z = 0; z < 8; z++) {
-                let color = getRandomArbitrary(60, 180);
-                if (Math.random() < 0.5)
-                    pal_octree_set(x, z, y, color, color, color, 255, 0, 0, 1);
-            }
-        }
-    }
-
-    for (let x = 0; x < 8; x++) {
-        for (let y = 0; y < 8; y++) {
-            for (let z = 0; z < 8; z++) {
-                pal_octree_set(x, z, y, getRandomArbitrary(80, 110), 42, 0, 255, 0, 0, 2);
-            }
-        }
-    }
-
-    for (let x = 0; x < 8; x++) {
-        for (let y = 0; y < 8; y++) {
-            for (let z = 0; z < 8; z++) {
-                pal_octree_set(x, z, y, 0, Math.random() * 120, 255, 255, Math.random() * 255, 0, 3);
-            }
-        }
-    }
-
-    for (let x = 3; x < 4; x++) {
-        for (let y = 0; y < 6; y++) {
-            for (let z = 3; z < 4; z++) {
-                pal_octree_set(x, y, z, getRandomArbitrary(100, 120), 42, 0, 255, Math.random() * 255, 0, 4);
-            }
-        }
-
-        for (let y = 6; y < 8; y++) {
-            for (let z = 3; z < 4; z++) {
-                pal_octree_set(x, y, z, 255, 100, 0, 255, 0, 255, 4);
-            }
-        }
-    }
+    gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
+        8 * pal_size, 8, 8, 0, srcFormat, srcType,
+        palette[0]);
+    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.generateMipmap(gl.TEXTURE_3D);
+   
 
     msize = subSize;
     for (let c = 0; c <= palette_oc_depth; c++) {
@@ -669,10 +460,8 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
 
     fb_pixels = new Uint8Array(4 * canvas.width * canvas.height);
 
-    //test- tmp
-    //updateCamera(gl);
-    //prev_rotation = glMatrix.vec3.clone(rotation);
-    //prev_position = glMatrix.vec3.clone(pos);
+    //call start in worldgen.js
+    start();
 
     //start render loop
     window.requestAnimationFrame(function (timestamp) {
@@ -680,110 +469,15 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     });
 }
 
-function addToPalette(r, g, b, s, e) {
+function addToPalette(r, g, b, s, e, slot) {
     for (let x = 0; x < 8; x++) {
         for (let y = 0; y < 8; y++) {
             for (let z = 0; z < 8; z++) {
-                pal_octree_set(x, y, z, r, g, b, 255, s, e, palette_used);
+                pal_octree_set(x, y, z, r, g, b, 255, s, e, slot);
             }
         }
     }
-    palette_used++;
-    return palette_used;
-}
-
-function palSetElement(x, y, z, r, g, b, a, slot, level, len) {
-    x += slot * len;
-    let ind = (x + (y * len + z * len * len) * pal_size) * 4;
-    palette[level][ind] = r;
-    palette[level][ind + 1] = g;
-    palette[level][ind + 2] = b;
-    palette[level][ind + 3] = a;
-}
-
-function pal_octree_set(x, y, z, r, g, b, a, s, e, slot) {
-    palSetElement(x, y, z, r, g, b, a, slot, 0, 8);
-    palSetElement(x >> 1, y >> 1, z >> 1, r, g, b, a, slot, 1, 4);
-    palSetElement(x >> 2, y >> 2, z >> 2, r, g, b, a, slot, 2, 2);
-    palSetElement(0, 0, 0, (s & 0b11110000) + (e & 0b00001111), 0, 0, 255, slot, 3, 1);
-}
-
-//set voxel values in data texture
-function setElement(x, y, z, r, g, b, a, chunk, level, len) {
-    let ind = x * 4 + (y * len + z * len * len) * 4 * pixelsPerVoxel;
-    pixels[chunk][level][ind] = r;
-    pixels[chunk][level][ind + 1] = g;
-    pixels[chunk][level][ind + 2] = b;
-    pixels[chunk][level][ind + 3] = a;
-}
-
-//set voxel values in the chunk in the given position
-function octree_set(x, y, z, r, g, b, a, chunk) {
-    if (a > 0) {
-        // iterate until the mask is shifted to target (leaf) layer
-        let xo = 0, yo = 0, zo = 0;
-        let pow2 = 1;
-        let csize = size;
-        for (let depth = 0; depth < octree_depth; depth++) {
-            let ind = (xo >> (octree_depth - depth)) * 4 + ((yo >> (octree_depth - depth)) * pow2 + (zo >> (octree_depth - depth)) * pow2 * pow2) * 4 * pixelsPerVoxel;
-
-            csize /= 2;
-
-            for (let xs = 0; xs < 2; xs++)
-                for (let ys = 0; ys < 2; ys++)
-                    for (let zs = 0; zs < 2; zs++) {
-                        let nc = (x >> (octree_depth - depth)) * 2 + xs +
-                            ((y >> (octree_depth - depth)) * 2 + ys) * pow2 * 2 +
-                            ((z >> (octree_depth - depth)) * 2 + zs) * pow2 * pow2 * 4;
-                        pixels[chunk][octree_depth - 1 - depth][nc * 4 + 1] = 254;
-                    }
-           
-
-            let oc = 0;
-            xo += (((x >> (octree_depth - 1 - depth)) & 1) > 0) * csize;
-            yo += (((y >> (octree_depth - 1 - depth)) & 1) > 0) * csize;
-            zo += (((z >> (octree_depth - 1 - depth)) & 1) > 0) * csize;
-            oc = (((x >> (octree_depth - 1 - depth)) & 1) * 1) + (((y >> (octree_depth - 1 - depth)) & 1) * 2) + (((z >> (octree_depth - 1 - depth)) & 1) * 4);
-            pixels[chunk][octree_depth - depth][ind + 3] |= 1 << oc;
-
-            pixels[chunk][octree_depth - depth][ind] = r;
-
-            pow2 *= 2;
-        }
-        setElement(x, y, z, r, 254, b, a, chunk, 0, size);
-    }
-    else {
-        setElement(x, y, z, r, 254, b, 0, chunk, 0, size);
-        let xo = x, yo = y, zo = z;
-        let pow2 = 0.5 * size;
-        let cut_branches = true;
-        for (let depth = 0; depth < octree_depth; depth++) {
-
-            xo >>= 1;
-            yo >>= 1;
-            zo >>= 1;
-            oc = (((x >> depth) & 1) * 1) + (((y >> depth) & 1) * 2) + (((z >> depth) & 1) * 4);
-
-            let ind = xo * 4 + (yo * pow2 + zo * pow2 * pow2) * 4 * pixelsPerVoxel;
-            if (cut_branches) {
-                pixels[chunk][depth + 1][ind + 3] &= ~(1 << oc);
-                if (depth > 0) {
-                    for (let xs = 0; xs < 2; xs++)
-                        for (let ys = 0; ys < 2; ys++)
-                            for (let zs = 0; zs < 2; zs++) {
-                                let nc = ((x >> (depth)) << 1) + xs +
-                                    (((y >> (depth)) << 1) + ys) * pow2 * 4 +
-                                    (((z >> (depth)) << 1) + zs) * pow2 * pow2 * 16;
-                                pixels[chunk][(depth - 1)][nc * 4 + 1] = 0;
-                            }
-                }
-            }
-            if (pixels[chunk][depth + 1][ind + 3] != 0) { cut_branches = false; }
-            pow2 /= 2;
-        }
-    }
-
-
+    updatePalette();
 }
 
 function updateCamera(gl) {
@@ -951,7 +645,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                             if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
                                 if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
                                     let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
-                                    octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, chunkid);
+                                    octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, chunkid);
                                     chunks2send.set(chunkid, 1);
                                 }
                             }
@@ -969,7 +663,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                     cursor3D[1] %= size;
                     cursor3D[2] %= size;
                     let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0,  chunkid);
+                    octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.palette_id, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, chunkid);
                     send_chunk(chunkid, gl);
                 }
             }
@@ -989,69 +683,4 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
         drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, timestamp);
     });
 }
-
-function initBuffers(gl) {
-
-    const vertices = [
-        -1.0, 1.0,
-        1.0, 1.0,
-        -1.0, -1.0,
-        1.0, -1.0,
-    ];
-
-    const vertex_buffer = gl.createBuffer();
-
-    // Bind appropriate array buffer to it
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertex_buffer);
-
-    // Pass the vertex data to the buffer
-    gl.bufferData(gl.ARRAY_BUFFER,
-        new Float32Array(vertices),
-        gl.STATIC_DRAW);
-
-    return {
-        position: vertex_buffer,
-    };
-}
-
-function initShaderProgram(gl, vsSource, fsSource) {
-    const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
-    const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
-
-    // Create the shader program
-
-    const shaderProgram = gl.createProgram();
-    gl.attachShader(shaderProgram, vertexShader);
-    gl.attachShader(shaderProgram, fragmentShader);
-    gl.linkProgram(shaderProgram);
-
-    // If creating the shader program failed, alert
-    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-        alert('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
-        return null;
-    }
-
-    gl.useProgram(shaderProgram);
-    return shaderProgram;
-}
-
-function loadShader(gl, type, source) {
-    const shader = gl.createShader(type);
-
-    // Send the source to the shader object
-    gl.shaderSource(shader, source);
-
-    // Compile the shader program
-    gl.compileShader(shader);
-
-    // See if it compiled successfully
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        alert('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
-        gl.deleteShader(shader);
-        return null;
-    }
-
-    return shader;
-}
-
 

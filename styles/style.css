@@ -102,6 +102,18 @@ body {
     border-radius: 25px;
 }
 
+#PRange {
+    -webkit-appearance: none; /* Override default CSS styles */
+    width: 200px;
+    height: 20px;
+    background: #ffffff;
+    outline: none;
+    opacity: 0.8; /* Set transparency (for mouse-over effects on hover) */
+    -webkit-transition: .0s; /* 0.2 seconds transition on hover */
+    transition: opacity .0s;
+    border-radius: 25px;
+}
+
 .slider5 {
     -webkit-appearance: none; /* Override default CSS styles */
     width: 180px;
@@ -162,7 +174,7 @@ body {
     top: 20px;
     border-style: solid;
     border-color: lightblue;
-    height: 310px;
+    height: 390px;
     width: 540px;
     background-color: darkslategrey;
 }
@@ -170,7 +182,7 @@ body {
 .pole2 {
     position: absolute;
     right: 10%;
-    top: 360px;
+    top: 420px;
     border-style: solid;
     border-color: lightblue;
     height: 250px;
@@ -181,7 +193,7 @@ body {
 .pole3 {
     position: absolute;
     right: 10%;
-    top: 640px;
+    top: 670px;
     border-style: solid;
     border-color: lightblue;
     height: 420px;
