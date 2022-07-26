@@ -82,14 +82,17 @@
                                             r = brush.color_r;
                                             g = brush.color_g;
                                             b = brush.color_b;
+                                            p = brush.palette_id;
 
                                             sliderR.value = r;
                                             sliderG.value = g;
                                             sliderB.value = b;
+                                            sliderP.value = p;
 
                                             outputR.innerHTML = r;
                                             outputG.innerHTML = g;
                                             outputB.innerHTML = b;
+                                            outputP.innerHTML = p;
 
                                             square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
                                         }

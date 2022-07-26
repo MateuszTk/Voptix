@@ -30,10 +30,10 @@ function handleMouseClick(event) {
                 case 0:
                     paint = 1;
                     break;
-                //sample color
+                //pick color
                 case 1:
                     event.preventDefault();
-                    paint = 3;
+                    paint = 5;
                     break;
                 case 2:
                     paint = 2;
@@ -87,6 +87,16 @@ window.addEventListener("keydown", function (event) {
             case "KeyE":
                 pos[1] += speed;
                 moved = true;
+                break;
+
+            //fill
+            case "KeyZ":
+                paint = 3;
+                break;
+
+            //fill empty
+            case "KeyX":
+                paint = 4
                 break;
 
             case "Space":
