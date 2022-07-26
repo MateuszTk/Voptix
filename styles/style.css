@@ -286,6 +286,21 @@ body {
     font-size: 18px;
 }
 
+#save_palette {
+    position: absolute;
+    left: 25%;
+    top: 200px;
+    border-style: solid;
+    border-color: blue;
+    height: 25px;
+    width: 300px;
+    background-color: deepskyblue;
+    border-radius: 10px;
+    font-family: Impact;
+    color: white;
+    font-size: 18px;
+}
+
 #polowaprzewijana {
     position: absolute;
     overflow: auto;

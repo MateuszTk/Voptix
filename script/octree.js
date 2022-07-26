@@ -16,7 +16,7 @@ function pal_octree_set(x, y, z, r, g, b, a, s, e, slot) {
 
 //set voxel values in data texture
 function setElement(x, y, z, r, g, b, a, chunk, level, len) {
-    let ind = x * 4 + (y * len + z * len * len) * 4 * pixelsPerVoxel;
+    let ind = (x + (y * len + z * len * len) * pixelsPerVoxel) * 4 ;
     pixels[chunk][level][ind] = r;
     pixels[chunk][level][ind + 1] = g;
     pixels[chunk][level][ind + 2] = b;
@@ -25,7 +25,7 @@ function setElement(x, y, z, r, g, b, a, chunk, level, len) {
 
 //get voxel values from data texture
 function getElement(x, y, z, chunk, level, len) {
-    let ind = x * 4 + (y * len + z * len * len) * 4 * pixelsPerVoxel;
+    let ind = (x + (y * len + z * len * len) * pixelsPerVoxel) * 4;
     return [pixels[chunk][level][ind],
     pixels[chunk][level][ind + 1],
     pixels[chunk][level][ind + 2],
@@ -97,4 +97,42 @@ function octree_set(x, y, z, r, g, b, a, chunk) {
     }
 
 
+}
+
+function chunk_octree_set(x, y, z, r, g, b, a, chunk) {
+    if (a > 0) {
+        // iterate until the mask is shifted to target (leaf) layer
+        let pow2 = 1;
+        let xo, yo, zo;
+        for (let depth = 0; depth < octree_depth; depth++) {
+            xo = (x >> (octree_depth - depth));
+            yo = (y >> (octree_depth - depth)) * pow2;
+            zo = (z >> (octree_depth - depth)) * pow2 * pow2;
+
+            let ind = (xo + yo + zo) * 4;
+
+            let ind_zero = xo * 2 + yo * 2 * 2 + zo * 2 * 4;
+
+            for (let xs = 0; xs < 2; xs++)
+                for (let ys = 0; ys < 2; ys++)
+                    for (let zs = 0; zs < 2; zs++) {
+                        let nc = ind_zero + xs + (ys * 2 + zs * pow2 * 4) * pow2;
+                        chunk[octree_depth - 1 - depth][nc * 4 + 1] = 255;
+                    }
+
+
+            let oc = (((x >> (octree_depth - 1 - depth)) & 1) * 1) + (((y >> (octree_depth - 1 - depth)) & 1) * 2) + (((z >> (octree_depth - 1 - depth)) & 1) * 4);
+            chunk[octree_depth - depth][ind + 3] |= 1 << oc;
+
+            chunk[octree_depth - depth][ind] = r;
+
+            pow2 *= 2;
+        }
+
+        let ind = x * 4 + (y * size + z * size * size) * 4;
+        chunk[0][ind] = r;
+        chunk[0][ind + 1] = 255;
+        chunk[0][ind + 2] = b;
+        chunk[0][ind + 3] = a;
+    }
 }

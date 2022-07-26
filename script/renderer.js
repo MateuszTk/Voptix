@@ -90,9 +90,7 @@ function save(name) {
         header[chunk_no + 1] = coord[1];
         header[chunk_no + 2] = coord[2];
         chunk_no += 3;
-        for (const levels of chunk) {
-            continuous_data.push(levels);
-        }
+        continuous_data.push(chunk[0]);
     });
 
     var a = document.createElement('a');
@@ -104,61 +102,115 @@ function save(name) {
     document.body.removeChild(a);
 }
 
+function save_palette(name) {
+    let continuous_data = [];
+    let pal_header = new Uint32Array(4);
+    pal_header[0] = pal_size; //x
+    pal_header[1] = 1;        //y
+    pal_header[2] = 1;        //z
+    pal_header[3] = 8;        //edge length
+    continuous_data.push(pal_header);
+    for (let level = 0; level < 4; level++) {
+        continuous_data.push(palette[level]);
+    }
+
+    var p = document.createElement('a');
+    let pal_blob = new Blob(continuous_data);
+    p.href = URL.createObjectURL(pal_blob);
+    p.download = name + ".vp";
+    document.body.appendChild(p);
+    p.click();
+    document.body.removeChild(p);
+}
+
 function loadFile() {
     var input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.vx';
+    input.accept = ['.vx', '.vp'];
+    input.multiple = 'multiple';
 
     input.onchange = e => {
+        const files = e.target.files;
+        for (const file of files) {
+            let f_extension = file.name.split('.').pop();
 
-        var file = e.target.files[0];
+            var reader = new FileReader();
+            reader.readAsArrayBuffer(file);
 
-        var reader = new FileReader();
-        reader.readAsArrayBuffer(file);
+            reader.onload = readerEvent => {
+                let continuous_data = new Uint8Array(readerEvent.target.result);
+                if (f_extension == 'vx') {
+                    //delete all old chunks
+                    chunk_map.clear();
+                    glMatrix.vec3.set(chunk_offset, 20, 0, 20);
+                    pos = glMatrix.vec3.fromValues(0, 65, 0);
+                    pixels.splice(0, pixels.length);
 
-        reader.onload = readerEvent => {
-            //delete all old chunks
-            chunk_map.clear();
-            glMatrix.vec3.set(chunk_offset, 20, 0, 20);
-            pos = glMatrix.vec3.fromValues(0, 65, 0);
-            pixels.splice(0, pixels.length);
+                    //load new chunks
+                    let header_len = new Uint32Array(continuous_data.buffer, 0, 1);
+                    let header = new Uint32Array(continuous_data.buffer, 4, header_len * 3);
+                    console.log(header);
 
-            //load new chunks
-            let continuous_data = new Uint8Array(readerEvent.target.result);
-            let header_len = new Uint32Array(continuous_data.buffer, 0, 1);
-            let header = new Uint32Array(continuous_data.buffer, 4, header_len * 3);
-            console.log(header);
+                    let offset = 4 + header_len * 4 * 3;
+                    for (let c = 0; c < header_len; c++) {
+                        let chunk = [];
+                        let msize = size;
+                        for (let level = 0; level < octree_depth + 1; level++) {
+                            chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
+                            msize /= 2;
+                        }
 
-            let offset = 4 + header_len * 4 * 3;
-            for (let c = 0; c < header_len; c++) {
-                let chunk = [];
-                let msize = size;
-                let layer_offset = 0;
-                for (let level = 0; level < octree_depth + 1; level++) {
-                    chunk.push(new Uint8Array(continuous_data.buffer, offset + 4 * c * chunk_size + layer_offset, msize * msize * msize * pixelsPerVoxel * 4));
-                    layer_offset += msize * msize * msize * pixelsPerVoxel * 4;
-                    msize /= 2;
+                        for (let vx = 0; vx < size; vx++) {
+                            for (let vy = 0; vy < size; vy++) {
+                                for (let vz = 0; vz < size; vz++) {
+                                    let id = (vx + (vy + vz * size) * size) * 4;
+                                    chunk_octree_set(vx, vy, vz, continuous_data[offset + id], 255, 0, continuous_data[offset + id + 3], chunk);
+                                }
+                            }
+                        }
+                        offset += size * size * size * 4;
+                        chunk_map.set([header[c * 3 + 0], header[c * 3 + 1], header[c * 3 + 2]].join(','), chunk);
+                    }
+
+                    //place loaded chunks or restore missing chunks nearby
+                    for (let x = 0; x < 3; x++) {
+                        for (let z = 0; z < 3; z++) {
+                            let chunk = [];
+                            let msize = size;
+                            for (let level = 0; level < octree_depth + 1; level++) {
+                                chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
+                                msize /= 2;
+                            }
+                            pixels.push(chunk_map.get([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(',')));
+                        }
+                    }
+
+                    for (let x = 0; x < 3; x++) {
+                        for (let z = 0; z < 3; z++) {
+                            generate_chunk(chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1, gl, true, chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1);
+                        }
+                    }
                 }
+                else if (f_extension == 'vp') {
+                    let pal_header = new Uint32Array(continuous_data.buffer, 0, 4);
+                    let pal_x = pal_header[0];
+                    let pal_y = pal_header[1];
+                    let pal_z = pal_header[2];
+                    let pal_edge = pal_header[3];
+                    let offset = 4 * 4;
 
-                chunk_map.set([header[c * 3 + 0], header[c * 3 + 1], header[c * 3 + 2]].join(','), chunk);
-            }
-
-            //place loaded chunks or restore missing chunks nearby
-            for (let x = 0; x < 3; x++) {
-                for (let z = 0; z < 3; z++) {
-                    let chunk = [];
-                    let msize = size;
-                    for (let level = 0; level < octree_depth + 1; level++) {
-                        chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
+                    let msize = pal_edge;
+                    for (let level = 0; level < 4; level++) {
+                        let lay_size = msize * msize * msize * pal_x * 4;
+                        palette[level] = new Uint8Array(continuous_data.buffer, offset, lay_size);
+                        offset += lay_size;
                         msize /= 2;
                     }
-                    pixels.push(chunk_map.get([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(',')));
-                }
-            }
 
-            for (let x = 0; x < 3; x++) {
-                for (let z = 0; z < 3; z++) {
-                    generate_chunk(chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1, gl, true, chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1);
+                    updatePalette();
+                }
+                else {
+                    console.log("Unknown file extension");
                 }
             }
         }
