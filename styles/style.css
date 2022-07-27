@@ -1,17 +1,24 @@
+html {
+    margin: 0;
+    height: 100%;
+}
+
 body {
     background-color: black;
+    margin: 0px;
+    height: 100%;
 }
 
 #fps_counter {
-    position: relative;
-    bottom: 0px;
+    position: absolute;
+    top: 0px;
     color: white;
 }
 
-#canvas_container{
+#canvas_container {
     position: absolute;
-    border: dashed;
-    border-color: lightblue;
+    margin: 0;
+    height: 99%;
 }
 
 .crosshair {
@@ -35,8 +42,19 @@ body {
     background-color: red;
 }
 
-/*by MaciekTk88*/
+#right-toolbar {
+    position: absolute;
+    overflow: auto;
+    border-style: solid;
+    border-color: lightblue;
+    background-color: dimgrey;
+    right: 0px;
+    top: 0px;
+    width: 600px;
+    bottom: 0px;
+}
 
+/*by MaciekTk88*/
 .slidecontainer {
     width: 100%; /* Width of the outside container */
 }
@@ -232,7 +250,7 @@ body {
 #kwadratowypedzelid {
     position: absolute;
     left: 200px;
-    top: 52px;
+    top: 82px;
     height: 25px;
     width: 25px;
 }

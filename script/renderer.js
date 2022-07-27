@@ -700,7 +700,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                     else {
                         //delete voxel
 
-                        if (parentVox[3] <= 0 && palGetElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0)[3] <= 0) {
+                        if (parentVox[3] <= 0 || palGetElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0)[3] <= 0) {
                             offset += 0.1;
                         }
                         else {
@@ -712,7 +712,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                     break;
                 }
             }
-            if (parentVox[3] >= 0) {
+            if (parentVox[3] > 0) {
                 pal_octree_set(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, parentVox[0]);
                 updatePalette();
             }

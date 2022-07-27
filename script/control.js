@@ -11,6 +11,11 @@ function lockChange() {
     if (!(document.pointerLockElement === document.body || document.mozPointerLockElement === document.body)) {
         locked = false;
         console.log('The pointer lock status is now unlocked');
+        //show toolbars
+        document.getElementById('right-toolbar').style.display = 'block';
+    }
+    else {
+        document.getElementById('right-toolbar').style.display = 'none';
     }
 }
 
