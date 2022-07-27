@@ -99,6 +99,12 @@ window.addEventListener("keydown", function (event) {
                 paint = 4
                 break;
 
+            //select edit mode
+            case "KeyP":
+                subvoxel_paint = !subvoxel_paint;
+                console.log("subvoxel_paint: " + subvoxel_paint);
+                break;
+
             case "Space":
                 paint = 1;
                 break;

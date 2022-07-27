@@ -43,15 +43,18 @@ var angle = glMatrix.vec3.create();
 var cursor3D = glMatrix.vec3.create();
 var paint = 0;
 var brush = { diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, palette_id: 0, type: true };
+var subvoxel_paint = false;
 
 const pixelsPerVoxel = 1;
 const size = 128;
 const subSize = 8;
+const subOctreeDepth = 3;
 var pixels = [];
 var textures = [];
 var pal_texture;
 var palette = [];
 var pal_size = 256;
+var pal_pix_cnt = 2;
 const chunk_map = new Map;
 
 var fb_textures = [];
@@ -105,10 +108,10 @@ function save(name) {
 function save_palette(name) {
     let continuous_data = [];
     let pal_header = new Uint32Array(4);
-    pal_header[0] = pal_size; //x
-    pal_header[1] = 1;        //y
-    pal_header[2] = 1;        //z
-    pal_header[3] = 8;        //edge length
+    pal_header[0] = pal_size;   //x
+    pal_header[1] = pal_pix_cnt;//y
+    pal_header[2] = 1;          //z
+    pal_header[3] = 8;          //edge length
     continuous_data.push(pal_header);
     for (let level = 0; level < 4; level++) {
         continuous_data.push(palette[level]);
@@ -201,7 +204,7 @@ function loadFile() {
 
                     let msize = pal_edge;
                     for (let level = 0; level < 4; level++) {
-                        let lay_size = msize * msize * msize * pal_x * 4;
+                        let lay_size = msize * msize * msize * pal_x * pal_y * pal_z * 4;
                         palette[level] = new Uint8Array(continuous_data.buffer, offset, lay_size);
                         offset += lay_size;
                         msize /= 2;
@@ -245,7 +248,7 @@ function updatePalette() {
     let palette_oc_depth = 3;
     for (let c = 0; c <= palette_oc_depth; c++) {
         gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
-            msize * pal_size, msize, msize, 0, srcFormat, srcType,
+            msize * pal_size, msize * pal_pix_cnt, msize, 0, srcFormat, srcType,
             palette[c]);
         msize /= 2;
     }
@@ -388,13 +391,13 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     //edge 2 ^ 3 = 8 voxels
     let palette_oc_depth = 3;
     for (let c = 0; c <= palette_oc_depth; c++) {
-        palette.push(new Uint8Array(msize * msize * msize * 4 * pal_size));
+        palette.push(new Uint8Array(msize * msize * msize * 4 * pal_size * pal_pix_cnt));
         //palette[c].fill(0xff, 0, msize * msize * msize * 4 * 256);
         msize /= 2;
     }
 
     gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
-        8 * pal_size, 8, 8, 0, srcFormat, srcType,
+        8 * pal_size, 8 * pal_pix_cnt, 8, 0, srcFormat, srcType,
         palette[0]);
     gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.generateMipmap(gl.TEXTURE_3D);
@@ -403,7 +406,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     msize = subSize;
     for (let c = 0; c <= palette_oc_depth; c++) {
         gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
-            msize * pal_size, msize, msize, 0, srcFormat, srcType,
+            msize * pal_size, msize * pal_pix_cnt, msize, 0, srcFormat, srcType,
             palette[c]);
         msize /= 2;
     }
@@ -669,25 +672,26 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     if (paint > 0) {
-
-        if (paint <= 5) {
-            pixel[3] /= subSize;
+        if (subvoxel_paint) {
             //place voxel
             let offset = 0.0;
-            let pick = -1;
+            let smallSize = subSize * size;
+            let parentVox = [-1, -1, -1, -1];
             //try moving cursor up to 8 times
             for (let it = 0; it < 8; it++) {
-                cursor3D[0] = Math.round((pos[0] + 1.5 * size + direction[0] * (pixel[3] / 2.0 + offset)) - 0.5);
-                cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 + offset)) - 0.5);
-                cursor3D[2] = Math.round((pos[2] + 1.5 * size + direction[2] * (pixel[3] / 2.0 + offset)) - 0.5);
+                cursor3D[0] = Math.round((pos[0] * 8.0 + 1.5 * smallSize + direction[0] * (pixel[3] / 2.0 + offset)) - 0.5);
+                cursor3D[1] = Math.round((pos[1] * 8.0 + direction[1] * (pixel[3] / 2.0 + offset)) - 0.5);
+                cursor3D[2] = Math.round((pos[2] * 8.0 + 1.5 * smallSize + direction[2] * (pixel[3] / 2.0 + offset)) - 0.5);
 
-                const cx = Math.floor(cursor3D[0] / size);
-                const cz = Math.floor(cursor3D[2] / size);
+                const cx = Math.floor(cursor3D[0] / smallSize);
+                const cz = Math.floor(cursor3D[2] / smallSize);
                 if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
                     let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
+                    parentVox = getElement(Math.floor(cursor3D[0] / 8) % size, Math.floor(cursor3D[1] / 8) % size, Math.floor(cursor3D[2] / 8) % size, chunkid, 0, size);
+
                     if (paint == 1 || paint == 3 || paint == 4) {
                         //place voxel
-                        if (getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[3] > 0) {
+                        if (parentVox[3] > 0 && palGetElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0)[3] > 0) {
                             offset -= 0.1;
                         }
                         else
@@ -695,93 +699,139 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                     }
                     else {
                         //delete voxel
-                        if (paint == 5)
-                            pick = getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[0];
 
-                        if (getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[3] <= 0) {
+                        if (parentVox[3] <= 0 && palGetElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0)[3] <= 0) {
                             offset += 0.1;
                         }
                         else {
                             break;
-                        }                        
+                        }
                     }
                 }
                 else {
                     break;
                 }
             }
-
-            //pick color
-            if (paint == 5) {
-                if (pick >= 0) {
-                    brush.palette_id = pick;
-                    console.log('picked: ' + pick)
-                    updateSliders();
-                }
+            if (parentVox[3] >= 0) {
+                pal_octree_set(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, parentVox[0]);
+                updatePalette();
             }
-            else {
+        }
+        else {
+            if (paint <= 5) {
+                pixel[3] /= subSize;
+                //place voxel
+                let offset = 0.0;
+                let pick = -1;
+                //try moving cursor up to 8 times
+                for (let it = 0; it < 8; it++) {
+                    cursor3D[0] = Math.round((pos[0] + 1.5 * size + direction[0] * (pixel[3] / 2.0 + offset)) - 0.5);
+                    cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 + offset)) - 0.5);
+                    cursor3D[2] = Math.round((pos[2] + 1.5 * size + direction[2] * (pixel[3] / 2.0 + offset)) - 0.5);
 
-                let chunks2send = new Map;
+                    const cx = Math.floor(cursor3D[0] / size);
+                    const cz = Math.floor(cursor3D[2] / size);
+                    if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
+                        let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
+                        if (paint == 1 || paint == 3 || paint == 4) {
+                            //place voxel
+                            if (getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[3] > 0) {
+                                offset -= 0.1;
+                            }
+                            else
+                                break;
+                        }
+                        else {
+                            //delete voxel
+                            if (paint == 5)
+                                pick = getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[0];
 
-                if (paint == 3 || paint == 4) {
-                    if (fill != vec3_minus_one) {
-                        console.log("P1:" + cursor3D);
-                        for (let x = Math.min(fill[0], cursor3D[0]); x <= Math.max(fill[0], cursor3D[0]); x++) {
-                            for (let y = Math.min(fill[1], cursor3D[1]); y <= Math.max(fill[1], cursor3D[1]); y++) {
-                                for (let z = Math.min(fill[2], cursor3D[2]); z <= Math.max(fill[2], cursor3D[2]); z++) {
-                                    if (x < 3 * size && z < 3 * size && y < size && x >= 0 && z >= 0 && y >= 0) {
-                                        let chunkid = Math.floor((x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
-                                        if (paint == 3)
-                                            octree_set(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, brush.color_g, brush.color_b, 255, chunkid);
-                                        else
-                                            octree_set(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, brush.color_g, brush.color_b, 0, chunkid);
-                                        chunks2send.set(chunkid, 1);
-                                    }
-                                }
+                            if (getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[3] <= 0) {
+                                offset += 0.1;
+                            }
+                            else {
+                                break;
                             }
                         }
-                        chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl); console.log(chunk) });
-
-                        fill = vec3_minus_one;
-                        paint = 0;
                     }
                     else {
-                        fill = glMatrix.vec3.clone(cursor3D);
-                        console.log("P0:" + fill);
+                        break;
                     }
                 }
-                else
-                    fill = vec3_minus_one;
 
-                if (paint > 0) {
-                    let r = brush.diameter / 2.0;
-                    if (brush.diameter > 4) {
-                        for (let x = -r; x < r; x++) {
-                            for (let y = -r; y < r; y++) {
-                                for (let z = -r; z < r; z++) {
-                                    if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
-                                        if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
-                                            let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
-                                            octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, chunkid);
+                //pick color
+                if (paint == 5) {
+                    if (pick >= 0) {
+                        brush.palette_id = pick;
+                        console.log('picked: ' + pick);
+                        updateSliders();
+                    }
+                }
+                else {
+
+                    let chunks2send = new Map;
+
+                    //fill with voxels or emptiness
+                    if (paint == 3 || paint == 4) {
+                        if (fill != vec3_minus_one) {
+                            console.log("P1:" + cursor3D);
+                            for (let x = Math.min(fill[0], cursor3D[0]); x <= Math.max(fill[0], cursor3D[0]); x++) {
+                                for (let y = Math.min(fill[1], cursor3D[1]); y <= Math.max(fill[1], cursor3D[1]); y++) {
+                                    for (let z = Math.min(fill[2], cursor3D[2]); z <= Math.max(fill[2], cursor3D[2]); z++) {
+                                        if (x < 3 * size && z < 3 * size && y < size && x >= 0 && z >= 0 && y >= 0) {
+                                            let chunkid = Math.floor((x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
+                                            if (paint == 3)
+                                                octree_set(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, brush.color_g, brush.color_b, 255, chunkid);
+                                            else
+                                                octree_set(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, brush.color_g, brush.color_b, 0, chunkid);
                                             chunks2send.set(chunkid, 1);
                                         }
                                     }
                                 }
                             }
+                            chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl); console.log(chunk) });
+
+                            fill = vec3_minus_one;
+                            paint = 0;
                         }
-                        chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl); console.log(chunk) });
+                        else {
+                            fill = glMatrix.vec3.clone(cursor3D);
+                            console.log("P0:" + fill);
+                        }
                     }
-                    else {
-                        const cx = Math.floor(cursor3D[0] / size);
-                        //const cy = Math.floor(cursor3D[1] / 64);
-                        const cz = Math.floor(cursor3D[2] / size);
-                        if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
-                            cursor3D[0] %= size;
-                            cursor3D[1] %= size;
-                            cursor3D[2] %= size;
-                            let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                            octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.palette_id, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, chunkid);
-                            send_chunk(chunkid, gl);
+                    else
+                        fill = vec3_minus_one;
+
+                    if (paint > 0) {
+                        let r = brush.diameter / 2.0;
+                        if (brush.diameter > 4) {
+                            for (let x = -r; x < r; x++) {
+                                for (let y = -r; y < r; y++) {
+                                    for (let z = -r; z < r; z++) {
+                                        if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
+                                            if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
+                                                let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
+                                                octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, chunkid);
+                                                chunks2send.set(chunkid, 1);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl); console.log(chunk) });
+                        }
+                        else {
+                            const cx = Math.floor(cursor3D[0] / size);
+                            //const cy = Math.floor(cursor3D[1] / 64);
+                            const cz = Math.floor(cursor3D[2] / size);
+                            if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
+                                cursor3D[0] %= size;
+                                cursor3D[1] %= size;
+                                cursor3D[2] %= size;
+                                let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
+                                octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.palette_id, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, chunkid);
+                                send_chunk(chunkid, gl);
+                            }
                         }
                     }
                 }

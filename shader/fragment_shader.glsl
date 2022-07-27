@@ -27,7 +27,7 @@ uniform ivec3[3] chunk_map;
 
 int debug_cnt = 0;
 
-vec4 getVoxel(vec3 fpos, float level, out vec2 mask) {
+vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element) {
 	vec4 fvoxel;
 	vec3 ofpos = fpos;
 	float olevel = level;
@@ -80,6 +80,7 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask) {
 			ofpos = fract(ofpos / vec3(8.0f, 8.0f, 8.0f));
 			ofpos.x /= 256.0f;
 			ofpos.x += fvoxel.x * (255.0f / 256.0f);
+			ofpos.y = ofpos.y / 2.0f + element * 0.5f;
 
 			fvoxel = textureLod(u_palette, ofpos, olevel);
 			mask.y = textureLod(u_palette, ofpos, olevel + 1.0f).w;
@@ -195,7 +196,7 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 		debug_cnt++;
 		move = true;
 		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * 3.0f && testPos.y < chunk_size && testPos.z < chunk_size * 3.0f) {
-			getVoxel(testPos, layer, mask);
+			getVoxel(testPos, layer, mask, 0.0f);
 			if (mask.x > 0.0f) {
 				if (layer == 0.0f) {
 					//found intersection
@@ -232,10 +233,10 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 		max_dist = dist;		
 
 		//get material
-		float palette_id = getVoxel(testPos, 3.0f, mask).r;
-		vec4 vox_mat = textureLod(u_palette, vec3(palette_id, 0.5f, 0.5f), 3.0f);//getVoxel(testPos, 1.0f, 0.0f, mask);
+		float palette_id = getVoxel(testPos, 3.0f, mask, 0.0f).r;
+		vec4 vox_mat = getVoxel(testPos, 0.0f, mask, 1.0f);
 
-		vec4 vox = getVoxel(testPos, 0.0f, mask);
+		vec4 vox = getVoxel(testPos, 0.0f, mask, 0.0f);
 		voutput.x = vox.x;
 		voutput.y = vox.y;
 		voutput.z = vox.z;
@@ -253,7 +254,7 @@ bool occlusion(vec3 delta_pos, vec3 box_pos, int scx, int scz) {
 	vec3 test = box_pos + delta_pos;
 	if (test.y < 0.0f || test.y >= chunk_size) return false;
 	vec2 mask;
-	return (getVoxel(test, 0.0f, mask).w > 0.0f);
+	return (getVoxel(test, 0.0f, mask, 0.0f).w > 0.0f);
 }
 
 void main() {
@@ -323,7 +324,7 @@ void main() {
 					prim_box_pos = box_pos;
 				}
 				float w = ray_pixel_color.w;
-				if ((int(vmat.x * 255.0f) & 15) > 0) { 
+				if (vmat.y > 0.0f) { 
 					illumination = vec4(8.0f);
 				}
 				ray_pixel_color.w = w;
@@ -334,8 +335,8 @@ void main() {
 				}				
 			}
 			else {
-				if ((int(tmpmat.x * 255.0f) & 15) > 0 && color.w < far)
-					illumination = vec4(float((int(tmpmat.x * 255.0f) & 15) << 4) / 255.0f) * color * 8.0f;
+				if (tmpmat.y > 0.0f && color.w < far)
+					illumination = vec4(tmpmat.y) * color * 8.0f;
 			}
 			if (color.w >= far && spp == 0) {
 				break;
@@ -479,13 +480,13 @@ void main() {
 			}
 		}
 		else {
-			float intensity = float(int(prevmat.x * 255.0f) & 240) / 100.0f;
+			float intensity = prevmat.y;
 			pixel_color.x = clamp((pixel_color.x + ray_pixel_color.x * intensity) / (1.0f + intensity), 0.0f, 1.0f);
 			pixel_color.y = clamp((pixel_color.y + ray_pixel_color.y * intensity) / (1.0f + intensity), 0.0f, 1.0f);
 			pixel_color.z = clamp((pixel_color.z + ray_pixel_color.z * intensity) / (1.0f + intensity), 0.0f, 1.0f);
 		}
 
-		if ((int(vmat.x * 255.0f) & 240) < 1) break;
+		if (vmat.x <= 0.0f) break;
 		else prevmat = vmat;
 
 		if (ray_pixel_color.w >= far) break;
