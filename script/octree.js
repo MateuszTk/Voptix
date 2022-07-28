@@ -1,6 +1,7 @@
-function palSetElement(x, y, z, r, g, b, a, slot, level, len, element) {
+function palSetElement(x, y, z, r, g, b, a, slot, level, len, element, variant) {
     x += slot * len;
     y += element * len;
+    z += variant * len;
     let ind = (x + (y * len + z * len * len * pal_pix_cnt) * pal_size) * 4;
     palette[level][ind] = r;
     palette[level][ind + 1] = g;
@@ -8,18 +9,20 @@ function palSetElement(x, y, z, r, g, b, a, slot, level, len, element) {
     palette[level][ind + 3] = a;
 }
 
-function palSetColor(x, y, z, r, g, b, slot, level, len, element) {
+function palSetColor(x, y, z, r, g, b, slot, level, len, element, variant) {
     x += slot * len;
     y += element * len;
+    z += variant * len;
     let ind = (x + (y * len + z * len * len * pal_pix_cnt) * pal_size) * 4;
     palette[level][ind] = r;
     palette[level][ind + 1] = g;
     palette[level][ind + 2] = b;
 }
 
-function palGetElement(x, y, z, slot, element) {
+function palGetElement(x, y, z, slot, element, variant) {
     x += slot * subSize;
     y += element * subSize;
+    z += variant * subSize;
     let ind = (x + (y * subSize + z * subSize * subSize * pal_pix_cnt) * pal_size) * 4;
     return [
         palette[0][ind],
@@ -29,9 +32,8 @@ function palGetElement(x, y, z, slot, element) {
     ];
 }
 
-function pal_octree_set(x, y, z, r, g, b, a, s, e, slot) {
+function pal_octree_set(x, y, z, r, g, b, a, s, e, slot, variant) {
     if (a > 0) {
-        //palSetColor(0, 0, 0, (s & 0b11110000) + (e & 0b00001111), 0, 0, slot, 3, 1);
         // iterate until the mask is shifted to target (leaf) layer
         let pow2 = 1;
         let xo, yo, zo;
@@ -40,18 +42,19 @@ function pal_octree_set(x, y, z, r, g, b, a, s, e, slot) {
             yo = (y >> (subOctreeDepth - depth)) * pow2;
             zo = (z >> (subOctreeDepth - depth)) * pow2 * pow2;
 
-            let ind = ((xo + slot * pow2) + (yo + zo * pal_pix_cnt) * pal_size) * 4;
+            let pal_variant_z_offset = pow2 * pow2 * pow2 * variant * pal_pix_cnt;
+            let ind = ((xo + slot * pow2) + (yo + zo * pal_pix_cnt + pal_variant_z_offset) * pal_size) * 4;
             let oc = (((x >> (subOctreeDepth - 1 - depth)) & 1) * 1) + (((y >> (subOctreeDepth - 1 - depth)) & 1) * 2) + (((z >> (subOctreeDepth - 1 - depth)) & 1) * 4);
             palette[subOctreeDepth - depth][ind + 3] |= 1 << oc;
 
             pow2 *= 2;
         }
-        palSetElement(x, y, z, r, g, b, a, slot, 0, subSize, 0);
-        palSetElement(x, y, z, s, e, 0, 0, slot, 0, subSize, 1);
+        palSetElement(x, y, z, r, g, b, a, slot, 0, subSize, 0, variant);
+        palSetElement(x, y, z, s, e, 0, 0, slot, 0, subSize, 1, variant);
     }
     else {
-        palSetElement(x, y, z, 0, 0, 0, 0, slot, 0, subSize, 0);
-        palSetElement(x, y, z, 0, 0, 0, 0, slot, 0, subSize, 1);
+        palSetElement(x, y, z, 0, 0, 0, 0, slot, 0, subSize, 0, variant);
+        palSetElement(x, y, z, 0, 0, 0, 0, slot, 0, subSize, 1, variant);
         let xo = x, yo = y, zo = z;
         let pow2 = 0.5 * subSize;
         let cut_branches = true;
@@ -62,7 +65,8 @@ function pal_octree_set(x, y, z, r, g, b, a, s, e, slot) {
             zo >>= 1;
             oc = (((x >> depth) & 1) * 1) + (((y >> depth) & 1) * 2) + (((z >> depth) & 1) * 4);
 
-            let ind = (xo + slot * pow2) * 4 + (yo * pow2 + zo * pow2 * pow2 * pal_pix_cnt) * pal_size * 4;
+            let pal_variant_z_offset = pow2 * pow2 * pow2 * variant * pal_pix_cnt;
+            let ind = (xo + slot * pow2) * 4 + (yo * pow2 + zo * pow2 * pow2 * pal_pix_cnt + pal_variant_z_offset) * pal_size * 4;
             if (cut_branches) {
                 palette[depth + 1][ind + 3] &= ~(1 << oc);
             }
@@ -70,16 +74,6 @@ function pal_octree_set(x, y, z, r, g, b, a, s, e, slot) {
             pow2 /= 2;
         }
     }
-    /*if (a > 0) {
-        palSetElement(x, y, z, r, g, b, a, slot, 0, 8);
-        palSetElement(x >> 1, y >> 1, z >> 1, r, g, b, a, slot, 1, 4);
-        palSetElement(x >> 2, y >> 2, z >> 2, r, g, b, a, slot, 2, 2);
-        palSetElement(0, 0, 0, (s & 0b11110000) + (e & 0b00001111), 0, 0, 255, slot, 3, 1);
-    }
-    else {
-        //TODO cut branches
-        palSetElement(x, y, z, r, g, b, 0, slot, 0, 8);
-    }*/
 }
 
 //set voxel values in data texture

@@ -77,10 +77,11 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element) {
 
 	if (olevel < 3.0f) {
 		if (fvoxel.w > 0.0f) {
-			ofpos = fract(ofpos / vec3(8.0f, 8.0f, 8.0f));
-			ofpos.x /= 256.0f;
+			//256 blocks in palette; 2 pixels per voxel; 8 variants
+			ofpos = fract(ofpos / vec3(8.0f, 8.0f, 8.0f)) / vec3(256.0f, 2.0f, 8.0f);
 			ofpos.x += fvoxel.x * (255.0f / 256.0f);
-			ofpos.y = ofpos.y / 2.0f + element * 0.5f;
+			ofpos.y += element * 0.5f;
+			ofpos.z += fvoxel.z * 32.0f * (255.0f / 256.0f);
 
 			fvoxel = textureLod(u_palette, ofpos, olevel);
 			mask.y = textureLod(u_palette, ofpos, olevel + 1.0f).w;
@@ -284,7 +285,8 @@ void main() {
 
 	vec4 prevmat = vec4(0, 0, 0, 0);
 	vec4 tmpmat = vec4(0, 0, 0, 0);
-	vec4 illumination = vec4(0.5f);
+	int gi_samples = 2;
+	vec4 illumination = vec4(0.5f * float(gi_samples));
 	vec3 prim_box_pos = vec3(0, 0, 0);
 
 	// set background color
@@ -299,11 +301,11 @@ void main() {
 		vec3 box_pos = vec3(0, 0, 0);
 		vec4 vmat = vec4(0, 0, 0, 0);
 
-		int samples = (bounces == 0) ? 3 : 2;
+		int samples = (bounces == 0) ? 2 + gi_samples : 2;
 		for (int spp = 0; spp < samples; spp++) {
 
 			vec4 color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
-			float max_dist = (spp < 2) ? (far) : (far / 2.0f);
+			float max_dist = (spp < 2) ? (far) : (far / 8.0f);
 
 			float tmp_dist = 0.0f;
 
@@ -325,7 +327,7 @@ void main() {
 				}
 				float w = ray_pixel_color.w;
 				if (vmat.y > 0.0f) { 
-					illumination = vec4(8.0f);
+					illumination = vec4(64.0f);
 				}
 				ray_pixel_color.w = w;
 			}
@@ -336,7 +338,7 @@ void main() {
 			}
 			else {
 				if (tmpmat.y > 0.0f && color.w < far)
-					illumination = vec4(tmpmat.y) * color * 8.0f;
+					illumination += vec4(tmpmat.y) * color * 8.0f;
 			}
 			if (color.w >= far && spp == 0) {
 				break;
@@ -357,7 +359,7 @@ void main() {
 					primary_hit = hit;
 				}
 
-				vec4 rnd = vec4(rand(pos + scene.screen.z), rand(pos + vec2(1.0f, 0.0f) + scene.screen.z), rand(pos + vec2(2.0f, 0.0f) + scene.screen.z), 1.0f);
+				vec4 rnd = vec4(rand(pos + scene.screen.z + float(spp) * 88.0f), rand(pos + vec2(1.0f, 0.0f) + scene.screen.z + float(spp) * 44.0f), rand(pos + vec2(2.0f, 0.0f) + scene.screen.z + float(spp) * 128.0f), 1.0f);
 				rnd.x = rnd.x * 2.0f - 1.0f;
 				rnd.y = rnd.y * 2.0f - 1.0f;
 
@@ -526,6 +528,7 @@ void main() {
 	//direction.yz *= -1.0f;
 	vec4 acc_ill = vec4(-1);
 	vec4 light = vec4(0.0f);
+	illumination /= float(gi_samples);
 	if (pixel.x > 0.0f && pixel.y > 0.0f && pixel.y < 1.0f && pixel.x < 1.0) {
 		if (distance(scene.prev_pos + ray_dir * ((texture(noise, pixel).w * 256.0f + texture(light_low, pixel).w) * 255.0f / 2.0f), primary_hit) < 0.5f) {
 			acc_ill = texture(light_low, pixel);

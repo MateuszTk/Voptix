@@ -132,6 +132,18 @@ body {
     border-radius: 25px;
 }
 
+#VRange {
+    -webkit-appearance: none; /* Override default CSS styles */
+    width: 200px;
+    height: 20px;
+    background: #ffffff;
+    outline: none;
+    opacity: 0.8; /* Set transparency (for mouse-over effects on hover) */
+    -webkit-transition: .0s; /* 0.2 seconds transition on hover */
+    transition: opacity .0s;
+    border-radius: 25px;
+}
+
 .slider5 {
     -webkit-appearance: none; /* Override default CSS styles */
     width: 180px;
@@ -250,7 +262,7 @@ body {
 #kwadratowypedzelid {
     position: absolute;
     left: 200px;
-    top: 82px;
+    top: 102px;
     height: 25px;
     width: 25px;
 }

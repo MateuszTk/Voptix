@@ -88,12 +88,18 @@
 
                     <br>
 
+                    <font style="font-size: 30px; color: white; font-family: Impact">Variant</font>
+                    <input type="range" min="0" max="7" value="0" id="VRange">
+                    <span style="font-size: 30px; color: white; font-family: Impact" id="Vtext"></span>
+
+                    <br>
+
                     <font style="font-size: 30px; color: white; font-family: Impact">Size</font>
                     <input type="range" min="1" max="40" value="1" class="slider5" id="BsRange">
                     <span style="font-size: 30px; color: white; font-family: Impact" id="demo4"></span>
 
 
-                    <font style="font-size: 30px; color: white; font-family: Impact; position:absolute; top: 80px; left: 0px">SQUARE BRUSH</font>
+                    <font style="font-size: 30px; color: white; font-family: Impact; position:absolute; top: 100px; left: 0px">SQUARE BRUSH</font>
                     <input type="checkbox" id="kwadratowypedzelid" name="kwadratowypedzel">
 
 
@@ -109,21 +115,24 @@
                     g = brush.color_g;
                     b = brush.color_b;
                     p = brush.palette_id;
+                    v = brush.variant;
 
                     sliderR.value = r;
                     sliderG.value = g;
                     sliderB.value = b;
                     sliderP.value = p;
+                    sliderV.value = v;
 
                     outputR.innerHTML = r;
                     outputG.innerHTML = g;
                     outputB.innerHTML = b;
                     outputP.innerHTML = p;
+                    outputV.innerHTML = v;
 
                     square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
                 }
 
-                var r = 255, g = 255, b = 255, c = 0, e = 0, p = 0;
+                var r = 255, g = 255, b = 255, c = 0, e = 0, p = 0, v = 0;
                 var square = document.getElementById("square");
                 var gora = document.getElementById("gora");
 
@@ -140,6 +149,7 @@
                     brush.clarity = c;
                     brush.emission = e;
                     brush.palette_id = p;
+                    brush.variant = v;
                 }
 
                 var sliderG = document.getElementById("GRange");
@@ -155,6 +165,7 @@
                     brush.clarity = c;
                     brush.emission = e;
                     brush.palette_id = p;
+                    brush.variant = v;
                 }
 
                 var sliderB = document.getElementById("BRange");
@@ -170,6 +181,7 @@
                     brush.clarity = c;
                     brush.emission = e;
                     brush.palette_id = p;
+                    brush.variant = v;
                 }
 
                 var sliderA = document.getElementById("ARange");
@@ -185,6 +197,7 @@
                     brush.clarity = c;
                     brush.emission = e;
                     brush.palette_id = p;
+                    brush.variant = v;
                 }
 
                 var sliderE = document.getElementById("ERange");
@@ -199,6 +212,7 @@
                     brush.clarity = c;
                     brush.emission = e;
                     brush.palette_id = p;
+                    brush.variant = v;
                 }
 
                 var sliderP = document.getElementById("PRange");
@@ -213,6 +227,22 @@
                     brush.clarity = c;
                     brush.emission = e;
                     brush.palette_id = p;
+                    brush.variant = v;
+                }
+
+                var sliderV = document.getElementById("VRange");
+                var outputV = document.getElementById("Vtext");
+                outputV.innerHTML = sliderV.value; // Display the default slider value
+                sliderV.oninput = function () {
+                    outputV.innerHTML = sliderV.value;
+                    v = sliderV.value;
+                    brush.color_r = r;
+                    brush.color_g = g;
+                    brush.color_b = b;
+                    brush.clarity = c;
+                    brush.emission = e;
+                    brush.palette_id = p;
+                    brush.variant = v;
                 }
 
                 sliderR.value = r;
@@ -221,6 +251,7 @@
                 sliderA.value = c;
                 sliderE.value = e;
                 sliderP.value = p;
+                sliderV.value = v;
 
                 outputR.innerHTML = r;
                 outputG.innerHTML = g;
@@ -228,6 +259,7 @@
                 outputA.innerHTML = c;
                 outputE.innerHTML = e;
                 outputP.innerHTML = p;
+                outputV.innerHTML = v;
 
                 gora.style.opacity = c / 255;
                 square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
@@ -237,6 +269,7 @@
                 brush.clarity = c;
                 brush.emission = e;
                 brush.palette_id = p;
+                brush.variant = v;
             </script>
 
 
@@ -382,5 +415,6 @@
 
             </div>
         </div>    
+    </div>
 </body>
 </html>
