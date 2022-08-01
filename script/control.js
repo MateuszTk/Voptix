@@ -60,13 +60,11 @@ window.addEventListener("keydown", function (event) {
             case "KeyW":
             case "ArrowUp":
                 glMatrix.vec3.scaleAndAdd(pos, pos, direction, speed);
-                moved = true;
                 break;
 
             case "KeyS":
             case "ArrowDown":
                 glMatrix.vec3.scaleAndAdd(pos, pos, direction, -speed);
-                moved = true;
                 break;
 
             case "KeyA":
@@ -74,7 +72,6 @@ window.addEventListener("keydown", function (event) {
                 glMatrix.vec3.cross(vec, direction, vec_up);
                 glMatrix.vec3.normalize(vec, vec);
                 glMatrix.vec3.scaleAndAdd(pos, pos, vec, speed);
-                moved = true;
                 break;
 
             case "KeyD":
@@ -82,16 +79,23 @@ window.addEventListener("keydown", function (event) {
                 glMatrix.vec3.cross(vec, direction, vec_up);
                 glMatrix.vec3.normalize(vec, vec);
                 glMatrix.vec3.scaleAndAdd(pos, pos, vec, -speed);
-                moved = true;
                 break;
 
             case "KeyQ":
                 pos[1] -= speed;
-                moved = true;
                 break;
             case "KeyE":
                 pos[1] += speed;
-                moved = true;
+                break;
+
+            //copy
+            case "KeyC":
+                copy();
+                break;
+
+            //paste
+            case "KeyV":
+                paste();
                 break;
 
             //fill

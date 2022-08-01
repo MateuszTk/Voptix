@@ -26,6 +26,7 @@ uniform vec3[8] scene_data;
 uniform ivec3[3] chunk_map;
 
 int debug_cnt = 0;
+float animationTime = 0.0f;
 
 vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element) {
 	vec4 fvoxel;
@@ -81,7 +82,10 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element) {
 			ofpos = fract(ofpos / vec3(8.0f, 8.0f, 8.0f)) / vec3(256.0f, 2.0f, 8.0f);
 			ofpos.x += fvoxel.x * (255.0f / 256.0f);
 			ofpos.y += element * 0.5f;
-			ofpos.z += fvoxel.z * 32.0f * (255.0f / 256.0f);
+			if(fvoxel.z < (8.0f / 256.0f))
+				ofpos.z += fvoxel.z * 32.0f * (255.0f / 256.0f);
+			else
+				ofpos.z += animationTime;
 
 			fvoxel = textureLod(u_palette, ofpos, olevel);
 			mask.y = textureLod(u_palette, ofpos, olevel + 1.0f).w;
@@ -276,6 +280,7 @@ void main() {
 	float fov = tan(scene.projection.x / 2.0f);
 	float near = scene.projection.y;
 	float far = 255.0f * 8.0f;//scene.projection.z;
+	animationTime = scene.camera_direction.z / 8.0f;
 
 	const float ray_retreat = 0.01f;
 

@@ -73,7 +73,6 @@ var brush_lock = true;
 var direction = glMatrix.vec3.create();
 var sensivity = 0.8;
 var speed = 1.0;
-var moved = false;
 
 var prev_rotation = glMatrix.vec3.create();
 var prev_position = glMatrix.vec3.create();
@@ -252,6 +251,25 @@ function updatePalette() {
             msize * pal_size, msize * pal_pix_cnt, msize * pal_variants, 0, srcFormat, srcType,
             palette[c]);
         msize /= 2;
+    }
+}
+
+
+var copied = [brush.palette_id, brush.variant];
+function copy() {
+    copied = [brush.palette_id, brush.variant];
+    console.log(copied);
+}
+
+function paste() {
+    for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+            for (let z = 0; z < 8; z++) {
+                let voxA = palGetElement(x, y, z, copied[0], 0, copied[1]);
+                let voxB = palGetElement(x, y, z, copied[0], 1, copied[1]);
+                pal_octree_set(x, y, z, voxA[0], voxA[1], voxA[2], voxA[3], voxA[0], voxB[1], brush.palette_id, brush.variant);
+            }
+        }
     }
 }
 
@@ -547,10 +565,6 @@ function updateCamera(gl) {
     cursor[0] = x;
     cursor[1] = y;
 
-    if (Math.abs(delta_x) > 0.0 || Math.abs(delta_y) > 0.0) {
-        moved = true;
-    }
-
     x = angle[0] + delta_x;
     y = angle[1] + delta_y;
 
@@ -608,11 +622,16 @@ var chunk_id_map = [0, 1, 2,
 
 var fill = vec3_minus_one;
 
+var animationTime = 0;
+setInterval(function () {
+    animationTime = (animationTime + 1) % 8;
+}, 250);
+
 function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, time) {
     updateCamera(gl);
     const scene = [
         (pos[0] + 1.5 * size) * subSize, (pos[1]) * subSize, (pos[2] + 1.5 * size) * subSize,
-        rotation[0], rotation[1], (moved ? 255 : 0),
+        rotation[0], rotation[1], animationTime,
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],
         canvas.width, canvas.height, Math.random() * 255,
         3.0 / 255.0, 219.0 / 255.0, 252.0 / 255.0, //background
@@ -623,7 +642,6 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
 
     prev_rotation = glMatrix.vec3.clone(rotation);
     prev_position = glMatrix.vec3.clone(pos);
-    if (moved) moved = false;
 
     gl.useProgram(shaderProgram);
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
@@ -746,8 +764,11 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                         }
                         else {
                             //delete voxel
-                            if (paint == 5)
-                                pick = getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[0];
+                            if (paint == 5) {
+                                let element = getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size);
+                                pick = element[0];
+                                pickVariant = element[2];
+                            }
 
                             if (getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[3] <= 0) {
                                 offset += 0.1;
@@ -766,6 +787,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                 if (paint == 5) {
                     if (pick >= 0) {
                         brush.palette_id = pick;
+                        brush.variant = pickVariant;
                         console.log('picked: ' + pick);
                         updateSliders();
                     }

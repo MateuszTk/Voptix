@@ -33,6 +33,9 @@ function palGetElement(x, y, z, slot, element, variant) {
 }
 
 function pal_octree_set(x, y, z, r, g, b, a, s, e, slot, variant) {
+    //variants with indices greater than number of variants are animated versions
+    if (variant >= pal_variants) return;
+
     if (a > 0) {
         // iterate until the mask is shifted to target (leaf) layer
         let pow2 = 1;
