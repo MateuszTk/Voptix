@@ -221,7 +221,7 @@ function loadFile() {
     input.click();
 }
 
-function send_chunk(i, gl) {
+function send_chunk(i, gl, x0, y0, z0, x1, y1, z1) {
     const internalFormat = gl.RGBA;
     const srcFormat = gl.RGBA;
     const srcType = gl.UNSIGNED_BYTE;
@@ -229,9 +229,17 @@ function send_chunk(i, gl) {
     gl.bindTexture(gl.TEXTURE_3D, textures[i]);
     let msize = size;
     for (let c = 0; c < octree_depth + 1; c++) {
-        gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
+       /* gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
             msize * pixelsPerVoxel, msize, msize, 0, srcFormat, srcType,
+            pixels[i][c]);*/
+        gl.texSubImage3D(gl.TEXTURE_3D, c, x0, y0, z0, Math.abs(x0 - x1) + 1, Math.abs(y0 - y1) + 1, Math.abs(z0 - z1) + 1, internalFormat, srcType,
             pixels[i][c]);
+        x0 = Math.floor(x0 / 2);
+        y0 = Math.floor(y0 / 2);
+        z0 = Math.floor(z0 / 2);
+        x1 = Math.floor(x1 / 2);
+        y1 = Math.floor(y1 / 2);
+        z1 = Math.floor(z1 / 2);
         msize /= 2;
     }
 }
@@ -315,7 +323,7 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     }
     if (send) {
         i = (sendx % 3) + (sendz % 3) * 3;
-        send_chunk(i, gl);
+        send_chunk(i, gl, 0, 0, 0, size - 1, size - 1, size - 1);
     }
 
     console.log("Took " + (Date.now() - timer_start) + "ms");
@@ -802,9 +810,12 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                     if (paint == 3 || paint == 4) {
                         if (fill != vec3_minus_one) {
                             console.log("P1:" + cursor3D);
-                            for (let x = Math.min(fill[0], cursor3D[0]); x <= Math.max(fill[0], cursor3D[0]); x++) {
-                                for (let y = Math.min(fill[1], cursor3D[1]); y <= Math.max(fill[1], cursor3D[1]); y++) {
-                                    for (let z = Math.min(fill[2], cursor3D[2]); z <= Math.max(fill[2], cursor3D[2]); z++) {
+                            let xstart = Math.min(fill[0], cursor3D[0]);
+                            let ystart = Math.min(fill[1], cursor3D[1]);
+                            let zstart = Math.min(fill[2], cursor3D[2]);
+                            for (let x = xstart; x <= Math.max(fill[0], cursor3D[0]); x++) {
+                                for (let y = ystart; y <= Math.max(fill[1], cursor3D[1]); y++) {
+                                    for (let z = zstart; z <= Math.max(fill[2], cursor3D[2]); z++) {
                                         if (x < 3 * size && z < 3 * size && y < size && x >= 0 && z >= 0 && y >= 0) {
                                             let chunkid = Math.floor((x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
                                             if (paint == 3)
@@ -816,7 +827,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                                     }
                                 }
                             }
-                            chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl); console.log(chunk) });
+                            chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl, 0, 0, 0, size - 1, size - 1, size - 1); console.log(chunk) });
 
                             fill = vec3_minus_one;
                             paint = 0;
@@ -845,7 +856,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                                     }
                                 }
                             }
-                            chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl); console.log(chunk) });
+                            chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl, 0, 0, 0, size - 1, size - 1, size - 1); console.log(chunk) });
                         }
                         else {
                             const cx = Math.floor(cursor3D[0] / size);
@@ -857,7 +868,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                                 cursor3D[2] %= size;
                                 let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
                                 octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0, chunkid);
-                                send_chunk(chunkid, gl);
+                                send_chunk(chunkid, gl, 0, 0, 0, size - 1, size - 1, size - 1);
                             }
                         }
                     }
