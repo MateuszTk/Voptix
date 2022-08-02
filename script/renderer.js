@@ -262,15 +262,17 @@ function copy() {
 }
 
 function paste() {
+    console.log([brush.palette_id, brush.variant]);
     for (let x = 0; x < 8; x++) {
         for (let y = 0; y < 8; y++) {
             for (let z = 0; z < 8; z++) {
                 let voxA = palGetElement(x, y, z, copied[0], 0, copied[1]);
                 let voxB = palGetElement(x, y, z, copied[0], 1, copied[1]);
-                pal_octree_set(x, y, z, voxA[0], voxA[1], voxA[2], voxA[3], voxA[0], voxB[1], brush.palette_id, brush.variant);
+                pal_octree_set(x, y, z, voxA[0], voxA[1], voxA[2], voxA[3], voxB[0], voxB[1], brush.palette_id, brush.variant);
             }
         }
     }
+    updatePalette();
 }
 
 

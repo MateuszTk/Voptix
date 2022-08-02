@@ -88,16 +88,6 @@ window.addEventListener("keydown", function (event) {
                 pos[1] += speed;
                 break;
 
-            //copy
-            case "KeyC":
-                copy();
-                break;
-
-            //paste
-            case "KeyV":
-                paste();
-                break;
-
             //fill
             case "KeyZ":
                 paint = 3;
@@ -125,6 +115,21 @@ window.addEventListener("keydown", function (event) {
             default:
                 break;
         }
+    }
+
+    switch (event.code) {
+        //copy
+        case "KeyC":
+            copy();
+            break;
+
+        //paste
+        case "KeyV":
+            paste();
+            break;
+
+        default:
+            break;
     }
 
 }, true);

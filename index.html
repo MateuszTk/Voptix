@@ -141,7 +141,7 @@
                 outputR.innerHTML = sliderR.value; // Display the default slider value
                 sliderR.oninput = function () {
                     outputR.innerHTML = sliderR.value;
-                    r = sliderR.value;
+                    r = parseInt(sliderR.value);
                     square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
                     brush.color_r = r;
                     brush.color_g = g;
@@ -157,7 +157,7 @@
                 outputG.innerHTML = sliderG.value; // Display the default slider value
                 sliderG.oninput = function () {
                     outputG.innerHTML = sliderG.value;
-                    g = sliderG.value;
+                    g = parseInt(sliderG.value);
                     square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
                     brush.color_r = r;
                     brush.color_g = g;
@@ -173,7 +173,7 @@
                 outputB.innerHTML = sliderB.value; // Display the default slider value
                 sliderB.oninput = function () {
                     outputB.innerHTML = sliderB.value;
-                    b = sliderB.value;
+                    b = parseInt(sliderB.value);
                     square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
                     brush.color_r = r;
                     brush.color_g = g;
@@ -189,7 +189,7 @@
                 outputA.innerHTML = sliderA.value; // Display the default slider value
                 sliderA.oninput = function () {
                     outputA.innerHTML = sliderA.value;
-                    c = sliderA.value;
+                    c = parseInt(sliderA.value);
                     gora.style.opacity = c / 255;
                     brush.color_r = r;
                     brush.color_g = g;
@@ -205,7 +205,7 @@
                 outputE.innerHTML = sliderE.value; // Display the default slider value
                 sliderE.oninput = function () {
                     outputE.innerHTML = sliderE.value;
-                    e = sliderE.value;
+                    e = parseInt(sliderE.value);
                     brush.color_r = r;
                     brush.color_g = g;
                     brush.color_b = b;
@@ -220,7 +220,7 @@
                 outputP.innerHTML = sliderP.value; // Display the default slider value
                 sliderP.oninput = function () {
                     outputP.innerHTML = sliderP.value;
-                    p = sliderP.value;
+                    p = parseInt(sliderP.value);
                     brush.color_r = r;
                     brush.color_g = g;
                     brush.color_b = b;
@@ -235,7 +235,7 @@
                 outputV.innerHTML = sliderV.value; // Display the default slider value
                 sliderV.oninput = function () {
                     outputV.innerHTML = sliderV.value;
-                    v = sliderV.value;
+                    v = parseInt(sliderV.value);
                     brush.color_r = r;
                     brush.color_g = g;
                     brush.color_b = b;
@@ -284,7 +284,7 @@
                 output4.innerHTML = slider4.value; // Display the default slider value
                 slider4.oninput = function () {
                     output4.innerHTML = slider4.value;
-                    bs = slider4.value;
+                    bs = parseInt(slider4.value);
                     circle.style.height = (bs * 2).toString() + "px";
                     circle.style.width = (bs * 2).toString() + "px";
                     var x = 443;
@@ -392,7 +392,7 @@
                     output5.innerHTML = slider5.value; // Display the default slider value
                     slider5.oninput = function () {
                         output5.innerHTML = slider5.value;
-                        ms = slider5.value;
+                        ms = parseInt(slider5.value);
                         sensivity = ms / 100;
                     }
                     slider5.value = ms;
@@ -404,7 +404,7 @@
                     output6.innerHTML = slider6.value; // Display the default slider value
                     slider6.oninput = function () {
                         output6.innerHTML = slider6.value;
-                        fs = slider6.value;
+                        fs = parseInt(slider6.value);
                         speed = fs / 50;
                     }
                     slider6.value = fs;
