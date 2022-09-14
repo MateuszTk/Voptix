@@ -20,6 +20,8 @@ function main() {
         return;
     }
 
+    initBlockPicker();
+
     fetch('./shader/vertex_shader.glsl').then((response) => response.text()).then((vertex) => {
         fetch('./shader/fragment_shader.glsl').then((response2) => response2.text()).then((fragment) => {
             fetch('./shader/post-processing.glsl').then((pp_response2) => pp_response2.text()).then((pp_fragment) => {
@@ -53,7 +55,7 @@ var pixels = [];
 var textures = [];
 var pal_texture;
 var palette = [];
-var pal_size = 256;
+const pal_size = 256;
 var pal_pix_cnt = 2;
 var pal_variants = 8;
 const chunk_map = new Map;
@@ -260,6 +262,9 @@ function updatePalette() {
             palette[c]);
         msize /= 2;
     }
+
+    generatePreviews();
+    displayPreviews();
 }
 
 

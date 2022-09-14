@@ -42,16 +42,55 @@ body {
     background-color: red;
 }
 
-#right-toolbar {
+#right-toolbar-container {
+    position: absolute;
+    overflow: visible;
+    right: 0px;
+    top: 0px;
+    width: 600px;
+    bottom: 0px;
+}
+
+#right-toolbar-editor {
     position: absolute;
     overflow: auto;
-    border-style: solid;
-    border-color: lightblue;
     background-color: dimgrey;
     right: 0px;
     top: 0px;
     width: 600px;
     bottom: 0px;
+}
+
+#right-toolbar-blockPicker {
+    position: absolute;
+    overflow: hidden;
+    border-left-style: solid;
+    border-right-style: solid;
+    border-width: 3px;
+    border-image: radial-gradient(rgba(0, 0, 255, 255), rgba(0, 0, 255, 0)) 10;
+    background-color: rgba(0, 255, 255, 41%);
+    left: -80px;
+    top: 0px;
+    width: 74px;
+    bottom: 0px;
+}
+
+#right-toolbar-blockPicker-block {
+    position: absolute;
+    top: 10px;
+    left: 2px;
+    width: 64px;
+    height: 64px;
+    border-style: solid;
+    border-color: blue;
+
+    /*canvas texture filtering*/
+    image-rendering: optimizeSpeed;
+    image-rendering: crisp-edges;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -o-crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+    -ms-interpolation-mode: nearest-neighbor;
 }
 
 /*by MaciekTk88*/
@@ -200,7 +239,7 @@ body {
 
 .pole1 {
     position: absolute;
-    right: 10%;
+    left: 0px;
     top: 20px;
     border-style: solid;
     border-color: lightblue;
@@ -211,7 +250,7 @@ body {
 
 .pole2 {
     position: absolute;
-    right: 10%;
+    left: 0px;
     top: 420px;
     border-style: solid;
     border-color: lightblue;
@@ -222,7 +261,7 @@ body {
 
 .pole3 {
     position: absolute;
-    right: 10%;
+    left: 0px;
     top: 670px;
     border-style: solid;
     border-color: lightblue;
@@ -233,7 +272,7 @@ body {
 
 .pole4 {
     position: absolute;
-    right: 10%;
+    left: 0px;
     top: 1090px;
     border-style: solid;
     border-color: lightblue;
@@ -244,7 +283,7 @@ body {
 
 .pole5 {
     position: absolute;
-    right: 10%;
+    left: 0px;
     top: 1090px;
     border-style: solid;
     border-color: lightblue;
@@ -399,4 +438,5 @@ body {
     color: white;
     font-family: Impact
 }
+
 

@@ -12,10 +12,12 @@ function lockChange() {
         locked = false;
         console.log('The pointer lock status is now unlocked');
         //show toolbars
-        document.getElementById('right-toolbar').style.display = 'block';
+        document.getElementById('right-toolbar-editor').style.display = 'block';
+        document.getElementById('right-toolbar-container').style.width = '600px';
     }
     else {
-        document.getElementById('right-toolbar').style.display = 'none';
+        document.getElementById('right-toolbar-editor').style.display = 'none';
+        document.getElementById('right-toolbar-container').style.width = '0px';
     }
 }
 
@@ -48,6 +50,12 @@ function handleMouseClick(event) {
         else brush_lock = false;
     }
 }
+
+window.addEventListener("wheel", function (event) {
+    brush.palette_id = clamp(brush.palette_id + (event.deltaY > 0 ? 1 : -1), 0, 255);
+    displayPreviews();
+    updateSliders();
+});
 
 window.addEventListener("keydown", function (event) {
     if (locked) {
@@ -133,3 +141,72 @@ window.addEventListener("keydown", function (event) {
     }
 
 }, true);
+
+
+var previewContext = [];
+var previewImageData = [];
+var centerId = 0;
+
+function initBlockPicker() {
+    let pickerPanel = document.getElementById("right-toolbar-blockPicker");
+    let pickerPanelHeight = Math.max(pickerPanel.offsetHeight, 100);
+    let top = 10;
+    centerId = Math.floor((pickerPanelHeight - 10) / 100 / 2);
+    let num = 0;
+
+    while (top < pickerPanelHeight) {
+        var blockCanvas = document.createElement('canvas');
+        blockCanvas.setAttribute("id", "right-toolbar-blockPicker-block");
+        blockCanvas.setAttribute("width", "8");
+        blockCanvas.setAttribute("height", "8");
+        blockCanvas.style.top = top + 'px';
+
+        //change color of the middle preview frame
+        if (num == centerId) blockCanvas.style.borderColor = "orange";
+        num++;
+
+        pickerPanel.appendChild(blockCanvas);
+        top += 100;
+        previewContext.push(blockCanvas.getContext('2d'));
+    } 
+}
+
+function generatePreviews() {
+    for (let i = 0; i < pal_size; i++) {
+
+        var idatat;
+        //if array is not full create new data, else reuse
+        if (previewImageData.length < pal_size)
+            idatat = new ImageData(8, 8);
+        else
+            idatat = previewImageData[i];
+
+        var pixels = idatat.data;
+
+        for (let x = 0; x < subSize; x++) {
+            for (let y = 0; y < subSize; y++) {
+                let off = (x + y * subSize) * 4;
+                let voxel = palGetElement(x, subSize - y - 1, 3, i, 0, 0);
+                pixels[off] = voxel[0];
+                pixels[off + 1] = voxel[1];
+                pixels[off + 2] = voxel[2];
+                pixels[off + 3] = voxel[3];
+            }
+        }
+        previewImageData.push(idatat);
+    }
+
+    //add empty icon (used for indices out of array bounds)
+    if (previewImageData.length == pal_size) {
+        previewImageData.push(new ImageData(8, 8));
+    }
+}
+
+function displayPreviews() {
+    previewContext.forEach((preview, index) => {
+        let id = index + brush.palette_id - centerId;
+        //last icon is being used for indices out of array bounds
+        if (id >= pal_size || id < 0) id = pal_size;
+        preview.putImageData(previewImageData[id], 0, 0);
+    });
+}
