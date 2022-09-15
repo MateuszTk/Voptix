@@ -6,6 +6,16 @@ uniform vec2 screen_size;
 
 out vec4[3] outColor;
 
+/*
+vec4 fromLinear(vec4 linearRGB) {
+    bvec4 cutoff = lessThan(linearRGB, vec4(0.0031308));
+    vec4 higher = vec4(1.055) * pow(linearRGB, vec4(1.0 / 2.4)) - vec4(0.055);
+    vec4 lower = linearRGB * vec4(12.92);
+
+    return mix(higher, lower, cutoff);
+}
+*/
+
 void main() {
     //vec4 lightcoord = texture(color[1], gl_FragCoord.xy/screen_size);
     vec4 light = vec4(0.0f);
@@ -50,15 +60,15 @@ void main() {
     light = (light + low_light) / cnt;
 
     light.w = low_light.w;
-    outColor[1] = p_light;//vec4(gl_FragCoord.x / screen_size.x);
+    outColor[1] = p_light;
     outColor[2] = light;
 
     //vec4 normal = texture(color[1], gl_FragCoord.xy / screen_size);
-    light = low_light;//(light + p_light) / cnt;
+    light = low_light;//fromLinear(low_light);
     vec4 prim = texture(color[0], gl_FragCoord.xy / screen_size);
-    vec4 outColorPrep = clamp(prim * (0.5f + light), 0.0f, 1.0f);
+    vec4 outColorPrep = clamp(prim * (0.0f + light), 0.0f, 1.0f);
     outColorPrep.w = prim.w;
     //light = clamp(texture(color[0], gl_FragCoord.xy / screen_size) * (0.5f + light), 0.0f, 1.0f);
-    outColor[0] = outColorPrep;//prim;//prim for debug//vec4(low_light.w);//
+    outColor[0] = outColorPrep;
    
 }

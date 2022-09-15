@@ -322,7 +322,7 @@ void main() {
 	vec4 prevmat = vec4(0, 0, 0, 0);
 	vec4 tmpmat = vec4(0, 0, 0, 0);
 	int gi_samples = 2;
-	vec4 illumination = vec4(0.5f * float(gi_samples));
+	vec3 illumination = vec3(0.8f * float(gi_samples));
 	vec3 prim_box_pos = vec3(0, 0, 0);
 
 	// set background color
@@ -363,11 +363,16 @@ void main() {
 				if (bounces == 0) { 
 					prim_box_pos = box_pos;
 				}
-				float w = ray_pixel_color.w;
-				if (vmat.y > 0.0f) { 
-					illumination = vec4(64.0f);
+				else {
+					illumination += vec3(6.0f);
 				}
-				ray_pixel_color.w = w;
+				if (vmat.y > 0.0f) { 
+					illumination = vec3(64.0f);
+				}
+				if (ray_pixel_color.w >= far) {
+					illumination = vec3(64.0f);
+				}
+
 			}
 			else if (spp == 1) {
 				if (color.w < far) {
@@ -375,8 +380,10 @@ void main() {
 				}				
 			}
 			else {
-				if (tmpmat.y > 0.0f && color.w < far)
-					illumination += vec4(tmpmat.y) * color * 8.0f;
+				if (color.w < far)
+					illumination += vec3(tmpmat.y) * color.xyz * 12.0f;
+				else
+					illumination += vec3(0.9f);
 			}
 			if (color.w >= far && spp == 0) {
 				break;
