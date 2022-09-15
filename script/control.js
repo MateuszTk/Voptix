@@ -203,10 +203,12 @@ function generatePreviews() {
 }
 
 function displayPreviews() {
-    previewContext.forEach((preview, index) => {
-        let id = index + brush.palette_id - centerId;
-        //last icon is being used for indices out of array bounds
-        if (id >= pal_size || id < 0) id = pal_size;
-        preview.putImageData(previewImageData[id], 0, 0);
-    });
+    if (previewImageData.length >= pal_size) {
+        previewContext.forEach((preview, index) => {
+            let id = index + brush.palette_id - centerId;
+            //last icon is being used for indices out of array bounds
+            if (id >= pal_size || id < 0) id = pal_size;
+            preview.putImageData(previewImageData[id], 0, 0);
+        });
+    }
 }

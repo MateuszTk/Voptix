@@ -637,6 +637,7 @@ var chunk_id_map = [0, 1, 2,
 
 var fill = vec3_minus_one;
 
+var frame = 0.0;
 var animationTime = 0;
 setInterval(function () {
     animationTime = (animationTime + 1) % 8;
@@ -648,13 +649,14 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
         (pos[0] + 1.5 * size) * subSize, (pos[1]) * subSize, (pos[2] + 1.5 * size) * subSize,
         rotation[0], rotation[1], animationTime,
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],
-        canvas.width, canvas.height, Math.random() * 255,
+        canvas.width, canvas.height, frame,
         3.0 / 255.0, 219.0 / 255.0, 252.0 / 255.0, //background
         1.2, 0.01, 100000.0, //projection (fov near far)
         (prev_position[0] + 1.5 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + 1.5 * size) * subSize,
         prev_rotation[0], prev_rotation[1], prev_rotation[2]
     ];
-
+    frame += 0.5;
+    if (frame >= 0xffffff) frame = 0.0;
     prev_rotation = glMatrix.vec3.clone(rotation);
     prev_position = glMatrix.vec3.clone(pos);
 

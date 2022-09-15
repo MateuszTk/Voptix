@@ -28,6 +28,39 @@ uniform ivec3[3] chunk_map;
 int debug_cnt = 0;
 float animationTime = 0.0f;
 
+float hash1(inout float seed) {
+	return fract(sin(seed += 0.1) * 43758.5453123);
+}
+
+vec2 hash2(inout float seed) {
+	return fract(sin(vec2(seed += 0.1, seed += 0.1)) * vec2(43758.5453123, 22578.1459123));
+}
+
+vec3 hash3(inout float seed) {
+	return fract(sin(vec3(seed += 0.1, seed += 0.1, seed += 0.1)) * vec3(43758.5453123, 22578.1459123, 19642.3490423));
+}
+
+vec3 cosWeightedRandomHemisphereDirection(const vec3 n, inout float seed) {
+	vec2 r = hash2(seed);
+
+	vec3  uu = normalize(cross(n, vec3(0.0, 1.0, 1.0)));
+	vec3  vv = cross(uu, n);
+
+	float ra = sqrt(r.y);
+	float rx = ra * cos(6.2831 * r.x);
+	float ry = ra * sin(6.2831 * r.x);
+	float rz = sqrt(1.0 - r.y);
+	vec3  rr = vec3(rx * uu + ry * vv + rz * n);
+
+	return normalize(rr);
+}
+
+vec3 randomSphereDirection(inout float seed) {
+	vec2 h = hash2(seed) * vec2(2., 6.28318530718) - vec2(1, 0);
+	float phi = h.y;
+	return vec3(sqrt(1. - h.x * h.x) * vec2(sin(phi), cos(phi)), h.x);
+}
+
 vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element) {
 	vec4 fvoxel;
 	vec3 ofpos = fpos;
@@ -161,10 +194,6 @@ void load_primary_ray(inout Ray ray, Scene scene, vec2 pos, const float width, c
 	load_ray(ray, dir, scene.camera_origin);
 }
 
-float rand(vec2 co) {
-	return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
-}
-
 void Bounce(inout Ray ray, vec3 hit, vec3 box_pos, float size) {
 
 	ray.orig = hit;
@@ -276,6 +305,8 @@ void main() {
 	);
 
 	vec2 pos = vec2(gl_FragCoord.x, gl_FragCoord.y);
+	//normalized pixel coordinates
+	vec2 centerPos = -1.0f + 2.0f * (pos.xy) / scene.screen.xy;
 
 	float fov = tan(scene.projection.x / 2.0f);
 	float near = scene.projection.y;
@@ -299,6 +330,8 @@ void main() {
 	vec4 pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
 	vec3 primary_hit = vec3(0.0f);
 	int deb_cnt_loc = 0;
+
+	float seed = centerPos.x + centerPos.y * 3.43121412313 + fract(1.12345314312 * scene.screen.z);
 
 	for (int bounces = 0; bounces < 3; bounces++) {
 		vec4 ray_pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
@@ -364,12 +397,14 @@ void main() {
 					primary_hit = hit;
 				}
 
-				vec4 rnd = vec4(rand(pos + scene.screen.z + float(spp) * 88.0f), rand(pos + vec2(1.0f, 0.0f) + scene.screen.z + float(spp) * 44.0f), rand(pos + vec2(2.0f, 0.0f) + scene.screen.z + float(spp) * 128.0f), 1.0f);
-				rnd.x = rnd.x * 2.0f - 1.0f;
-				rnd.y = rnd.y * 2.0f - 1.0f;
+				
 
 				vec3 dir;
 				if (spp < 1) {
+					vec3 rnd = hash3(seed);
+					rnd.x = rnd.x * 2.0f - 1.0f;
+					rnd.y = rnd.y * 2.0f - 1.0f;
+
 					//shadow ray
 					rnd *= 0.1f;
 					dir = vec3(
@@ -381,23 +416,17 @@ void main() {
 				else {
 
 					dir = ray.dir;
+					vec3 normal = vec3(1.0f);
+					normal.x = ((hit.x >= box_pos.x + 0.5f) ? 1.0f : 
+						((hit.x <= box_pos.x - 0.5f) ? -1.0f : 0.0f));
 
-					if ((hit.x >= box_pos.x + 0.5f || hit.x <= box_pos.x - 0.5f)) {
-						dir.x = sign(-dir.x) * rnd.z;
-						dir.y = rnd.x;
-						dir.z = rnd.y;
-					}
-					if ((hit.y >= box_pos.y + 0.5f || hit.y <= box_pos.y - 0.5f)) {
-						dir.y = sign(-dir.y) * rnd.z;
-						dir.x = rnd.x;
-						dir.z = rnd.y;
-					}
-					if ((hit.z >= box_pos.z + 0.5f || hit.z <= box_pos.z - 0.5f)) {
-						dir.z = sign(-dir.z) * rnd.z;
-						dir.y = rnd.x;
-						dir.x = rnd.y;
-					}
+					normal.y = ((hit.y >= box_pos.y + 0.5f) ? 1.0f : 
+						((hit.y <= box_pos.y - 0.5f) ? -1.0f : 0.0f));
 
+					normal.z = ((hit.z >= box_pos.z + 0.5f) ? 1.0f : 
+						((hit.z <= box_pos.z - 0.5f) ? -1.0f : 0.0f));
+
+					dir = cosWeightedRandomHemisphereDirection(normal, seed);
 				}
 
 				load_ray(ray, dir, origin);
@@ -555,11 +584,10 @@ void main() {
 	outColor[0] = pixel_color;
 
 	//normals
-	//vec4 normal = vec4(1.0f);//vec3(ivec3(prim_box_pos) % 255) / 255.0f;
-	//normal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f || primary_hit.x <= prim_box_pos.x - 0.5f) ? 1.0f : 0.0f);
-	//normal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f || primary_hit.y <= prim_box_pos.y - 0.5f) ? 1.0f : 0.0f);
-	//normal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f || primary_hit.z <= prim_box_pos.z - 0.5f) ? 1.0f : 0.0f);
-	//outColor[1] = normal;
+	vec3 normal = vec3(1.0f);//vec3(ivec3(prim_box_pos) % 255) / 255.0f;
+	normal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f || primary_hit.x <= prim_box_pos.x - 0.5f) ? 1.0f : 0.0f);
+	normal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f || primary_hit.y <= prim_box_pos.y - 0.5f) ? 1.0f : 0.0f);
+	normal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f || primary_hit.z <= prim_box_pos.z - 0.5f) ? 1.0f : 0.0f);
 
 	//ligting data output
 	
@@ -569,5 +597,6 @@ void main() {
 	outColor[1].xyz = light.xyz;
 	outColor[1].w = float(int(light.w * 255.0f) % 256) / 255.0f;
 	//high
-	outColor[2] = vec4(ivec4(light * 255.0f) / 256) / 255.0f;
+	outColor[2].xyz = normal;
+	outColor[2].w = float(int(light.w * 255.0f) / 256) / 255.0f;
 }
