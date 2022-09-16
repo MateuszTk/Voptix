@@ -16,6 +16,9 @@ vec4 fromLinear(vec4 linearRGB) {
 }
 */
 
+vec2 offsets[4] = vec2[](vec2(0.0f, 1.0f), vec2(0.0f, -1.0f), vec2(1.0f, 0.0f), vec2(-1.0f, 0.0f));
+    //vec2(1.0f, 1.0f), vec2(-1.0f, -1.0f), vec2(-1.0f, 1.0f), vec2(1.0f, -1.0f));
+
 void main() {
     //vec4 lightcoord = texture(color[1], gl_FragCoord.xy/screen_size);
     vec4 light = vec4(0.0f);
@@ -28,32 +31,12 @@ void main() {
     
     vec3 p_normal = p_light.xyz;
     if (p_normal != vec3(0, 0, 0)) {
-        pos = vec2(0.0f, 1.0f);
-        pos = clamp((pos + gl_FragCoord.xy) / screen_size, 0.0f, 1.0f);
-        if (p_normal == texture(color[2], pos).xyz) {
-            light += texture(color[1], pos);
-            cnt++;
-        }
-
-        pos = vec2(0.0f, -1.0f);
-        pos = clamp((pos + gl_FragCoord.xy) / screen_size, 0.0f, 1.0f);
-        if (p_normal == texture(color[2], pos).xyz) {
-            light += texture(color[1], pos);
-            cnt++;
-        }
-
-        pos = vec2(1.0f, 0.0f);
-        pos = clamp((pos + gl_FragCoord.xy) / screen_size, 0.0f, 1.0f);
-        if (p_normal == texture(color[2], pos).xyz) {
-            light += texture(color[1], pos);
-            cnt++;
-        }
-
-        pos = vec2(-1.0f, 0.0f);
-        pos = clamp((pos + gl_FragCoord.xy) / screen_size, 0.0f, 1.0f);
-        if (p_normal == texture(color[2], pos).xyz) {
-            light += texture(color[1], pos);
-            cnt++;
+        for (int i = 0; i < 4; i++) {
+            pos = clamp((offsets[i] + gl_FragCoord.xy) / screen_size, 0.0f, 1.0f);
+            if (p_normal == texture(color[2], pos).xyz) {
+                light += texture(color[1], pos);
+                cnt++;
+            }
         }
     }
 

@@ -71,13 +71,10 @@ const chunk_size = ((1 - Math.pow(8, (octree_depth + 1))) / -7) * pixelsPerVoxel
 var locked = false;
 var brush_lock = true;
 
-// vector representing where the camera is currently pointing
-var direction = glMatrix.vec3.create();
-var sensivity = 0.8;
-var speed = 1.0;
-
 var prev_rotation = glMatrix.vec3.create();
 var prev_position = glMatrix.vec3.create();
+
+var deltaTime = 0;
 
 window.onload = main;
 
@@ -891,13 +888,16 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     }
 
     window.requestAnimationFrame(function (timestamp) {
+        deltaTime = timestamp - time;
+
         if (wait > 10) {
             document.getElementById('fps_counter').innerHTML = ('FPS:' + Math.round(10000.0 / fps_time));
             fps_time = 0;
             wait = 0;
         }
         else
-            fps_time += timestamp - time;
+            fps_time += deltaTime;
+
         wait++;
         drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, timestamp);
     });

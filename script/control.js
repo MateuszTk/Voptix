@@ -1,3 +1,8 @@
+// vector representing where the camera is currently pointing
+var direction = glMatrix.vec3.create();
+var sensivity = 0.8;
+var speed = 1.0;
+
 document.addEventListener('pointerlockchange', lockChange, false);
 document.addEventListener('mozpointerlockchange', lockChange, false);
 
@@ -61,6 +66,8 @@ window.addEventListener("wheel", function (event) {
     updateSliders();
 });
 
+var acceleration = 0.1;
+
 window.addEventListener("keydown", function (event) {
     if (locked) {
         glMatrix.vec3.normalize(direction, direction);
@@ -68,36 +75,39 @@ window.addEventListener("keydown", function (event) {
         var vec = glMatrix.vec3.create();
         var vec_up = glMatrix.vec3.create();
         vec_up[1] = 1;
+        let realSpeed = speed * deltaTime * 0.04 * Math.sqrt(acceleration);
+        acceleration = clamp(acceleration * (1 + deltaTime * 0.1), 0.1, 1);
+
         switch (event.code) {
             case "KeyW":
             case "ArrowUp":
-                glMatrix.vec3.scaleAndAdd(pos, pos, direction, speed);
+                glMatrix.vec3.scaleAndAdd(pos, pos, direction, realSpeed);
                 break;
 
             case "KeyS":
             case "ArrowDown":
-                glMatrix.vec3.scaleAndAdd(pos, pos, direction, -speed);
+                glMatrix.vec3.scaleAndAdd(pos, pos, direction, -realSpeed);
                 break;
 
             case "KeyA":
             case "ArrowLeft":
                 glMatrix.vec3.cross(vec, direction, vec_up);
                 glMatrix.vec3.normalize(vec, vec);
-                glMatrix.vec3.scaleAndAdd(pos, pos, vec, speed);
+                glMatrix.vec3.scaleAndAdd(pos, pos, vec, realSpeed);
                 break;
 
             case "KeyD":
             case "ArrowRight":
                 glMatrix.vec3.cross(vec, direction, vec_up);
                 glMatrix.vec3.normalize(vec, vec);
-                glMatrix.vec3.scaleAndAdd(pos, pos, vec, -speed);
+                glMatrix.vec3.scaleAndAdd(pos, pos, vec, -realSpeed);
                 break;
 
             case "KeyQ":
-                pos[1] -= speed;
+                pos[1] -= realSpeed;
                 break;
             case "KeyE":
-                pos[1] += speed;
+                pos[1] += realSpeed;
                 break;
 
             //fill
@@ -160,6 +170,19 @@ window.addEventListener("keyup", function (event) {
         case "ShiftLeft":
             variantsPanel.style.display = 'none';
             shift = false;
+            break;
+
+        case "KeyW":
+        case "ArrowUp":
+        case "KeyS":
+        case "ArrowDown":
+        case "KeyA":
+        case "ArrowLeft":
+        case "KeyD":
+        case "ArrowRight":
+        case "KeyQ":
+        case "KeyE":
+            acceleration = 0.1;
             break;
 
         default:
