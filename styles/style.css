@@ -5,6 +5,7 @@ html {
 
 body {
     background-color: black;
+    overflow: hidden;
     margin: 0px;
     height: 100%;
 }
@@ -18,7 +19,7 @@ body {
 #canvas_container {
     position: absolute;
     margin: 0;
-    height: 99%;
+    height: 100%;
 }
 
 .crosshair {
@@ -63,7 +64,7 @@ body {
 
 #right-toolbar-blockPicker {
     position: absolute;
-    overflow: hidden;
+    overflow:  visible;
     border-left-style: solid;
     border-right-style: solid;
     border-width: 3px;
@@ -75,15 +76,35 @@ body {
     bottom: 0px;
 }
 
-#right-toolbar-blockPicker-block {
+.right-toolbar-blockPicker-block {
     position: absolute;
-    top: 10px;
     left: 2px;
     width: 64px;
     height: 64px;
     border-style: solid;
     border-color: blue;
 
+    /*canvas texture filtering*/
+    image-rendering: optimizeSpeed;
+    image-rendering: crisp-edges;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: -o-crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
+    -ms-interpolation-mode: nearest-neighbor;
+}
+
+.right-toolbar-blockPicker-block-center {
+    position: absolute;
+    /*overflow needed for variant selector*/
+    overflow: visible;
+    top: 10px;
+    left: 2px;
+    width: 64px;
+    height: 64px;
+    box-shadow: 0 0 15px orange;
+    border-style: solid;
+    border-color: orange;
+    border-width: 4px;
     /*canvas texture filtering*/
     image-rendering: optimizeSpeed;
     image-rendering: crisp-edges;

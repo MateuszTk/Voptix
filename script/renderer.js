@@ -56,8 +56,8 @@ var textures = [];
 var pal_texture;
 var palette = [];
 const pal_size = 256;
-var pal_pix_cnt = 2;
-var pal_variants = 8;
+const pal_pix_cnt = 2;
+const pal_variants = 8;
 const chunk_map = new Map;
 
 var fb_textures = [];
@@ -275,17 +275,22 @@ function copy() {
 }
 
 function paste() {
-    console.log([brush.palette_id, brush.variant]);
-    for (let x = 0; x < 8; x++) {
-        for (let y = 0; y < 8; y++) {
-            for (let z = 0; z < 8; z++) {
-                let voxA = palGetElement(x, y, z, copied[0], 0, copied[1]);
-                let voxB = palGetElement(x, y, z, copied[0], 1, copied[1]);
-                pal_octree_set(x, y, z, voxA[0], voxA[1], voxA[2], voxA[3], voxB[0], voxB[1], brush.palette_id, brush.variant);
+    if (brush.variant < 8 && copied[1] < 8) {
+        console.log([brush.palette_id, brush.variant]);
+        for (let x = 0; x < 8; x++) {
+            for (let y = 0; y < 8; y++) {
+                for (let z = 0; z < 8; z++) {
+                    let voxA = palGetElement(x, y, z, copied[0], 0, copied[1]);
+                    let voxB = palGetElement(x, y, z, copied[0], 1, copied[1]);
+                    pal_octree_set(x, y, z, voxA[0], voxA[1], voxA[2], voxA[3], voxB[0], voxB[1], brush.palette_id, brush.variant);
+                }
             }
         }
+        updatePalette();
     }
-    updatePalette();
+    else {
+        console.log('Cannot copy animation!');
+    }
 }
 
 
@@ -887,7 +892,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
 
     window.requestAnimationFrame(function (timestamp) {
         if (wait > 10) {
-            document.getElementById('fps_counter').innerHTML = ('FPS:' + (10000.0 / fps_time));
+            document.getElementById('fps_counter').innerHTML = ('FPS:' + Math.round(10000.0 / fps_time));
             fps_time = 0;
             wait = 0;
         }

@@ -52,7 +52,11 @@ function handleMouseClick(event) {
 }
 
 window.addEventListener("wheel", function (event) {
-    brush.palette_id = clamp(brush.palette_id + (event.deltaY > 0 ? 1 : -1), 0, 255);
+    if (shift == false)
+        brush.palette_id = clamp(brush.palette_id + (event.deltaY > 0 ? 1 : -1), 0, 255);
+    else
+        brush.variant = clamp(brush.variant + (event.deltaY > 0 ? -1 : 1), 0, 8);
+
     displayPreviews();
     updateSliders();
 });
@@ -116,6 +120,7 @@ window.addEventListener("keydown", function (event) {
                 paint = 1;
                 break;
 
+            //exit pointer lock
             case "Enter":
                 document.exitPointerLock();
                 break;
@@ -136,15 +141,39 @@ window.addEventListener("keydown", function (event) {
             paste();
             break;
 
+        //show variants panel
+        case "ShiftLeft":
+            variantsPanel.style.display = 'block';
+            shift = true;
+            break;
+
         default:
             break;
     }
 
 }, true);
 
+window.addEventListener("keyup", function (event) {
 
+    switch (event.code) {
+        //copy
+        case "ShiftLeft":
+            variantsPanel.style.display = 'none';
+            shift = false;
+            break;
+
+        default:
+            break;
+    }
+
+}, true);
+
+var shift = false;
 var previewContext = [];
+//variantPreview: [0] - canvas; [1] - context;
+var variantPreview = [];
 var previewImageData = [];
+var variantsPanel;
 var centerId = 0;
 
 function initBlockPicker() {
@@ -156,13 +185,47 @@ function initBlockPicker() {
 
     while (top < pickerPanelHeight) {
         var blockCanvas = document.createElement('canvas');
-        blockCanvas.setAttribute("id", "right-toolbar-blockPicker-block");
+        //apply special style to the preview frame in the center
+        if (num == centerId) {
+            blockCanvas.setAttribute("class", "right-toolbar-blockPicker-block-center");
+
+            //variant previews
+            variantsPanel = document.createElement('div');
+            variantsPanel.setAttribute("class", "right-toolbar-blockPicker-block");
+            variantsPanel.style.top = top + 'px';
+            //hidden by default; keyboard activated
+            variantsPanel.style.display = 'none';
+
+            for (let x = 0; x < 8; x++) {
+                var variantCanvas = document.createElement('canvas');
+                variantCanvas.setAttribute("class", "right-toolbar-blockPicker-block");
+                variantCanvas.setAttribute("width", "8");
+                variantCanvas.setAttribute("height", "8");
+                variantCanvas.style.top = '-2px';
+                variantCanvas.style.left = ((x + 1) * -74) + 'px';
+                variantsPanel.appendChild(variantCanvas);
+                variantPreview.push([variantCanvas, variantCanvas.getContext('2d')]);
+            }
+
+            //add the animation icon in place of the last variant
+            var animationImg = document.createElement("img");
+            animationImg.src = "./images/animation.png";
+            animationImg.setAttribute("class", "right-toolbar-blockPicker-block");
+            animationImg.style.left = (9 * -74) + 'px';
+            variantCanvas.style.top = '-2px';
+            variantsPanel.appendChild(animationImg);
+            variantPreview.push([animationImg, 0]);
+
+
+            pickerPanel.appendChild(variantsPanel);
+        }
+        else blockCanvas.setAttribute("class", "right-toolbar-blockPicker-block");
+
         blockCanvas.setAttribute("width", "8");
         blockCanvas.setAttribute("height", "8");
         blockCanvas.style.top = top + 'px';
 
-        //change color of the middle preview frame
-        if (num == centerId) blockCanvas.style.borderColor = "orange";
+        
         num++;
 
         pickerPanel.appendChild(blockCanvas);
@@ -172,33 +235,36 @@ function initBlockPicker() {
 }
 
 function generatePreviews() {
-    for (let i = 0; i < pal_size; i++) {
-
-        var idatat;
-        //if array is not full create new data, else reuse
-        if (previewImageData.length < pal_size)
-            idatat = new ImageData(8, 8);
-        else
-            idatat = previewImageData[i];
-
-        var pixels = idatat.data;
-
-        for (let x = 0; x < subSize; x++) {
-            for (let y = 0; y < subSize; y++) {
-                let off = (x + y * subSize) * 4;
-                let voxel = palGetElement(x, subSize - y - 1, 3, i, 0, 0);
-                pixels[off] = voxel[0];
-                pixels[off + 1] = voxel[1];
-                pixels[off + 2] = voxel[2];
-                pixels[off + 3] = voxel[3];
+    //if array is not full create new data
+    if (previewImageData.length < pal_size) {
+         //+1 to add empty icon (used for indices outside the bounds of the array)
+        for (let i = 0; i < pal_size + 1; i++) {
+            var block = [];
+            for (let variant = 0; variant < pal_variants; variant++) {
+                block.push(new ImageData(8, 8));
             }
-        }
-        previewImageData.push(idatat);
+            previewImageData.push(block);
+        }        
     }
 
-    //add empty icon (used for indices out of array bounds)
-    if (previewImageData.length == pal_size) {
-        previewImageData.push(new ImageData(8, 8));
+    for (let i = 0; i < pal_size; i++) {
+        for (let variant = 0; variant < pal_variants; variant++) {
+
+            var imdata = previewImageData[i][variant];
+            var pixels = imdata.data;
+
+            for (let x = 0; x < subSize; x++) {
+                for (let y = 0; y < subSize; y++) {
+                    let off = (x + y * subSize) * 4;
+                    let voxel = palGetElement(x, subSize - y - 1, 3, i, 0, variant);
+                    pixels[off] = voxel[0];
+                    pixels[off + 1] = voxel[1];
+                    pixels[off + 2] = voxel[2];
+                    pixels[off + 3] = voxel[3];
+                }
+            }
+            
+        }
     }
 }
 
@@ -208,7 +274,16 @@ function displayPreviews() {
             let id = index + brush.palette_id - centerId;
             //last icon is being used for indices out of array bounds
             if (id >= pal_size || id < 0) id = pal_size;
-            preview.putImageData(previewImageData[id], 0, 0);
+            preview.putImageData(previewImageData[id][0], 0, 0);
+        });
+        variantPreview.forEach((preview, index) => {
+            let id = brush.palette_id;
+            //last icon is being used for indices out of array bounds
+            if (id >= pal_size || id < 0) id = pal_size;
+            if (index == brush.variant) preview[0].style.borderColor = 'orange';
+            else preview[0].style.borderColor = 'blue';
+            if (index != pal_variants)
+                preview[1].putImageData(previewImageData[id][index], 0, 0);
         });
     }
 }
