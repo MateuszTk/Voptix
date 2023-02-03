@@ -6,7 +6,7 @@ var speed = 1.0;
 document.addEventListener('pointerlockchange', lockChange, false);
 document.addEventListener('mozpointerlockchange', lockChange, false);
 
-function handleCanvasClick(event) {
+function handleCanvasClick() {
     document.body.requestPointerLock();
     locked = true;
     brush_lock = true;
@@ -26,12 +26,16 @@ function lockChange() {
     }
 }
 
+var cursorPosX = 0, cursorPosY = 0;
+
 document.onmousemove = handleMouseMove;
 function handleMouseMove(event) {
     if (locked) {
         mouseX += event.movementX;
         mouseY += event.movementY;
     }
+    cursorPosX = event.clientX;
+    cursorPosY = event.clientY;
 }
 
 document.onmousedown = handleMouseClick;
@@ -57,13 +61,15 @@ function handleMouseClick(event) {
 }
 
 window.addEventListener("wheel", function (event) {
-    if (shift == false)
-        brush.palette_id = clamp(brush.palette_id + (event.deltaY > 0 ? 1 : -1), 0, 255);
-    else
-        brush.variant = clamp(brush.variant + (event.deltaY > 0 ? -1 : 1), 0, 8);
+    if (locked || window.innerWidth - cursorPosX > 600) {
+        if (shift == false)
+            brush.palette_id = clamp(brush.palette_id + (event.deltaY > 0 ? 1 : -1), 0, 255);
+        else
+            brush.variant = clamp(brush.variant + (event.deltaY > 0 ? -1 : 1), 0, 8);
 
-    displayPreviews();
-    updateSliders();
+        displayPreviews();
+        updateSliders();
+    }
 });
 
 var acceleration = 0.1;
@@ -122,17 +128,11 @@ window.addEventListener("keydown", function (event) {
 
             //select edit mode
             case "KeyP":
-                subvoxel_paint = !subvoxel_paint;
-                console.log("subvoxel_paint: " + subvoxel_paint);
+                togglePrecision();
                 break;
 
             case "Space":
                 paint = 1;
-                break;
-
-            //exit pointer lock
-            case "Enter":
-                document.exitPointerLock();
                 break;
 
             default:
@@ -155,6 +155,14 @@ window.addEventListener("keydown", function (event) {
         case "ShiftLeft":
             variantsPanel.style.display = 'block';
             shift = true;
+            break;
+
+        //exit pointer lock
+        case "KeyF":
+            if (locked)
+                document.exitPointerLock();
+            else
+                handleCanvasClick();
             break;
 
         default:
@@ -190,6 +198,12 @@ window.addEventListener("keyup", function (event) {
     }
 
 }, true);
+
+function togglePrecision() {
+    subvoxel_paint = !subvoxel_paint;
+    showPrecision(subvoxel_paint);
+    console.log("subvoxel_paint: " + subvoxel_paint);
+}
 
 var shift = false;
 var previewContext = [];

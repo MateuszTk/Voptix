@@ -891,7 +891,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
         deltaTime = timestamp - time;
 
         if (wait > 10) {
-            document.getElementById('fps_counter').innerHTML = ('FPS:' + Math.round(10000.0 / fps_time));
+            document.getElementById('fps_counter').innerHTML = (Math.round(10000.0 / fps_time) + "FPS");
             fps_time = 0;
             wait = 0;
         }

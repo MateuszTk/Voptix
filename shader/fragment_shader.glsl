@@ -71,7 +71,7 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element) {
 	int chunk = chunk_map[chu.z][chu.x];
 
 	fpos /= chunk_size;
-	fpos -= vec3(chu);
+	//fpos -= vec3(chu);
 
 	//3 lowest levels are subvoxels
 	level -= 3.0f;
@@ -592,9 +592,11 @@ void main() {
 
 	//normals
 	vec3 normal = vec3(1.0f);//vec3(ivec3(prim_box_pos) % 255) / 255.0f;
-	normal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f || primary_hit.x <= prim_box_pos.x - 0.5f) ? 1.0f : 0.0f);
-	normal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f || primary_hit.y <= prim_box_pos.y - 0.5f) ? 1.0f : 0.0f);
-	normal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f || primary_hit.z <= prim_box_pos.z - 0.5f) ? 1.0f : 0.0f);
+	//gradient on normals helps denoiser not to blur edges
+	vec3 gradient = vec3(ivec3(prim_box_pos) % 255 + 1) / 255.0f;
+	normal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f || primary_hit.x <= prim_box_pos.x - 0.5f) ? gradient.x : 0.0f);
+	normal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f || primary_hit.y <= prim_box_pos.y - 0.5f) ? gradient.y : 0.0f);
+	normal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f || primary_hit.z <= prim_box_pos.z - 0.5f) ? gradient.z : 0.0f);
 
 	//ligting data output
 	
