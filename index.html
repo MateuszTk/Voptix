@@ -8,6 +8,7 @@
 	<script src="/script/octree.js"></script>
 	<script src="/script/worldgen.js"></script>
 	<script src="/script/control.js"></script>
+	<script src="/script/ui.js" defer></script>
 	<script src="/script/renderer.js"></script>
 
 	<link rel="stylesheet" href="/styles/style.css">
@@ -16,75 +17,83 @@
 </head>
 <body>
 	<div id="canvas_container">
-		<canvas id="glCanvas" width="800" height="600" style="width: 100%; height: 100%;"></canvas>
+		<canvas id="glCanvas" width="1280" height="720" style="width: 100%; height: 100%;"></canvas>
 		<div class="crosshair"></div>
 	</div>
 	<p id="fps_counter">FPS</p>
-	<button class="prompt" style="left: 2px; bottom: 2px;" onclick="togglePrecision()">
+	<button class="prompt" style="left: 2px; bottom: 2px;" onclick="precisionButton()">
 		<p style="margin: 4px;"><kbd>P</kbd> <span id="precision">Precision mode</span></p>
 	</button>
-
-	<!--by MaciekTk88-->
 	<div id="right-toolbar-container">
 		<div id="right-toolbar-editor">
 			<div id="wrapper">
-				<section>
-					<h1>VOXEL</h1>
-					<div style="float: left;">
-						<div class="slider" style="color: red;">
-							<label for="RRange">R.</label>
-							<input type="range" min="0" max="255" value="255" style="background-color: red;" id="RRange">
-							<span id="Rtext"></span><br>
+				<nav class="tab">
+					<button id="worldTabLink" onclick="openTab(0)">World</button>
+					<button id="blockTabLink" onclick="openTab(1)">Block</button>
+				</nav>
+				<div id="blockTab">
+					<section>
+						<h1>VOXEL</h1>
+						<div style="float: left;">
+							<div class="slider" style="color: red;">
+								<label for="RRange">R.</label>
+								<input type="range" min="0" max="255" value="255" style="background-color: red;" id="RRange">
+								<span id="Rtext"></span><br>
+							</div>
+							<div class="slider" style="color: green;">
+								<label for="GRange">G.</label>
+								<input type="range" min="0" max="255" value="255" style="background-color: green;" id="GRange">
+								<span id="Gtext"></span><br>
+							</div>
+							<div class="slider" style="color: blue;">
+								<label for="BRange">B.</label>
+								<input type="range" min="0" max="255" value="255" style="background-color: blue;" id="BRange">
+								<span id="Btext"></span><br>
+							</div>
+							<div class="slider" style="color: white;">
+								<label for="ARange">C.</label>
+								<input type="range" min="0" max="255" value="255" id="ARange">
+								<span id="Atext"></span><br>
+							</div>
+							<div class="slider" style="color: white;">
+								<label for="ERange">E.&nbsp;</label>
+								<input type="range" min="0" max="255" value="255" id="ERange">
+								<span id="Etext"></span><br>
+							</div>
+							<button type="button" class="button" onclick="addToPalette(brush.color_r, brush.color_g, brush.color_b, brush.clarity, brush.emission, brush.palette_id);">Fill</button>
 						</div>
-						<div class="slider" style="color: green;">
-							<label for="GRange">G.</label>
-							<input type="range" min="0" max="255" value="255" style="background-color: green;" id="GRange">
-							<span id="Gtext"></span><br>
+						<div id="previewMask" style="float: right;">
+							<img src="/images/gora.jpg" width="200" height="200" id="matPreview">
 						</div>
-						<div class="slider" style="color: blue;">
-							<label for="BRange">B.</label>
-							<input type="range" min="0" max="255" value="255" style="background-color: blue;" id="BRange">
-							<span id="Btext"></span><br>
+					</section>
+				</div>
+				<div id="worldTab">
+					<section>
+						<h1>BRUSH</h1>
+						<div style="float: left;">
+							<div class="slider" style="color: white;">
+								<label for="PRange">Voxel</label>
+								<input type="range" min="0" max="64" value="0" id="PRange">
+								<span id="Ptext"></span><br>
+							</div>
+							<div class="slider" style="color: white;">
+								<label for="VRange">Variant</label>
+								<input type="range" min="0" max="8" value="0" id="VRange">
+								<span id="Vtext"></span><br>
+							</div>
+							<div class="slider" style="color: white;">
+								<label for="BsRange">Size</label>
+								<input type="range" min="1" max="40" value="1" id="BsRange">
+								<span id="demo4"></span><br>
+							</div>
+							<label for="kwadratowypedzelid" style="font-size: 30px; color: white; font-family: Impact;">SQUARE BRUSH</label>
+							<input type="checkbox" id="kwadratowypedzelid" name="kwadratowypedzel">
 						</div>
-						<div class="slider" style="color: white;">
-							<label for="ARange">C.</label>
-							<input type="range" min="0" max="255" value="255" id="ARange">
-							<span id="Atext"></span><br>
+						<div id="brushPreview">
+							<div id="circle"></div>
 						</div>
-						<div class="slider" style="color: white;">
-							<label for="ERange">E.&nbsp;</label>
-							<input type="range" min="0" max="255" value="255" id="ERange">
-							<span id="Etext"></span><br>
-						</div>
-						<button type="button" class="button" onclick="addToPalette(brush.color_r, brush.color_g, brush.color_b, brush.clarity, brush.emission, brush.palette_id);">Fill</button>
-					</div>
-					<div id="previewMask" style="float: right;">
-						<img src="/images/gora.jpg" width="200" height="200" id="matPreview">
-					</div>
-				</section>
-				<section>
-					<h1>BRUSH</h1>
-					<div style="float: left;">
-						<div class="slider" style="color: white;">
-							<label for="PRange">Voxel</label>
-							<input type="range" min="0" max="64" value="0" id="PRange">
-							<span id="Ptext"></span><br>
-						</div>
-						<div class="slider" style="color: white;">
-							<label for="VRange">Variant</label>
-							<input type="range" min="0" max="8" value="0" id="VRange">
-							<span id="Vtext"></span><br>
-						</div>
-						<div class="slider" style="color: white;">
-							<label for="BsRange">Size</label>
-							<input type="range" min="1" max="40" value="1" id="BsRange">
-							<span id="demo4"></span><br>
-						</div>
-						<label for="kwadratowypedzelid" style="font-size: 30px; color: white; font-family: Impact;">SQUARE BRUSH</label>
-						<input type="checkbox" id="kwadratowypedzelid" name="kwadratowypedzel">
-					</div>
-					<div id="circle"></div>
-				</section>
+					</section>
+				</div>
 				<section>
 					<h1>WORLD</h1>
 					<div style="position: relative; display: flex;">
@@ -156,257 +165,6 @@
 						</table>
 					</div>
 				</section>
-
-				<!--TODO: clean this up-->
-				<script>
-					var precisionPrompt = document.getElementById("precision");
-					function showPrecision(precision) {
-						precisionPrompt.innerText = (precision) ? "Sub-voxel" : "Voxel";
-					}
-					showPrecision(false);
-
-					function updateSliders() {
-						r = brush.color_r;
-						g = brush.color_g;
-						b = brush.color_b;
-						p = brush.palette_id;
-						v = brush.variant;
-
-						sliderR.value = r;
-						sliderG.value = g;
-						sliderB.value = b;
-						sliderP.value = p;
-						sliderV.value = v;
-
-						outputR.innerHTML = r;
-						outputG.innerHTML = g;
-						outputB.innerHTML = b;
-						outputP.innerHTML = p;
-						outputV.innerHTML = v;
-
-						previewMask.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
-						displayPreviews();
-					}
-
-					var r = 255, g = 255, b = 255, c = 0, e = 0, p = 0, v = 0;
-					var gora = document.getElementById("matPreview");
-					var previewMask = document.getElementById("previewMask");
-
-					var sliderR = document.getElementById("RRange");
-					var outputR = document.getElementById("Rtext");
-					outputR.innerHTML = sliderR.value; // Display the default slider value
-					sliderR.oninput = function () {
-						outputR.innerHTML = sliderR.value;
-						r = parseInt(sliderR.value);
-						previewMask.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
-						brush.color_r = r;
-						brush.color_g = g;
-						brush.color_b = b;
-						brush.clarity = c;
-						brush.emission = e;
-						brush.palette_id = p;
-						brush.variant = v;
-					}
-
-					var sliderG = document.getElementById("GRange");
-					var outputG = document.getElementById("Gtext");
-					outputG.innerHTML = sliderG.value; // Display the default slider value
-					sliderG.oninput = function () {
-						outputG.innerHTML = sliderG.value;
-						g = parseInt(sliderG.value);
-						previewMask.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
-						brush.color_r = r;
-						brush.color_g = g;
-						brush.color_b = b;
-						brush.clarity = c;
-						brush.emission = e;
-						brush.palette_id = p;
-						brush.variant = v;
-					}
-
-					var sliderB = document.getElementById("BRange");
-					var outputB = document.getElementById("Btext");
-					outputB.innerHTML = sliderB.value; // Display the default slider value
-					sliderB.oninput = function () {
-						outputB.innerHTML = sliderB.value;
-						b = parseInt(sliderB.value);
-						previewMask.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
-						brush.color_r = r;
-						brush.color_g = g;
-						brush.color_b = b;
-						brush.clarity = c;
-						brush.emission = e;
-						brush.palette_id = p;
-						brush.variant = v;
-					}
-
-					var sliderA = document.getElementById("ARange");
-					var outputA = document.getElementById("Atext");
-					outputA.innerHTML = sliderA.value; // Display the default slider value
-					sliderA.oninput = function () {
-						outputA.innerHTML = sliderA.value;
-						c = parseInt(sliderA.value);
-						gora.style.opacity = c / 255;
-						brush.color_r = r;
-						brush.color_g = g;
-						brush.color_b = b;
-						brush.clarity = c;
-						brush.emission = e;
-						brush.palette_id = p;
-						brush.variant = v;
-					}
-
-					var sliderE = document.getElementById("ERange");
-					var outputE = document.getElementById("Etext");
-					outputE.innerHTML = sliderE.value; // Display the default slider value
-					sliderE.oninput = function () {
-						outputE.innerHTML = sliderE.value;
-						e = parseInt(sliderE.value);
-						brush.color_r = r;
-						brush.color_g = g;
-						brush.color_b = b;
-						brush.clarity = c;
-						brush.emission = e;
-						brush.palette_id = p;
-						brush.variant = v;
-					}
-
-					var sliderP = document.getElementById("PRange");
-					var outputP = document.getElementById("Ptext");
-					outputP.innerHTML = sliderP.value; // Display the default slider value
-					sliderP.oninput = function () {
-						outputP.innerHTML = sliderP.value;
-						p = parseInt(sliderP.value);
-						brush.color_r = r;
-						brush.color_g = g;
-						brush.color_b = b;
-						brush.clarity = c;
-						brush.emission = e;
-						brush.palette_id = p;
-						brush.variant = v;
-
-						displayPreviews();
-					}
-
-					var sliderV = document.getElementById("VRange");
-					var outputV = document.getElementById("Vtext");
-					outputV.innerHTML = sliderV.value; // Display the default slider value
-					sliderV.oninput = function () {
-						outputV.innerHTML = sliderV.value;
-						v = parseInt(sliderV.value);
-						brush.color_r = r;
-						brush.color_g = g;
-						brush.color_b = b;
-						brush.clarity = c;
-						brush.emission = e;
-						brush.palette_id = p;
-						brush.variant = v;
-
-						displayPreviews();
-					}
-
-					sliderR.value = r;
-					sliderG.value = g;
-					sliderB.value = b;
-					sliderA.value = c;
-					sliderE.value = e;
-					sliderP.value = p;
-					sliderV.value = v;
-
-					outputR.innerHTML = r;
-					outputG.innerHTML = g;
-					outputB.innerHTML = b;
-					outputA.innerHTML = c;
-					outputE.innerHTML = e;
-					outputP.innerHTML = p;
-					outputV.innerHTML = v;
-
-					gora.style.opacity = c / 255;
-					previewMask.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
-					brush.color_r = r;
-					brush.color_g = g;
-					brush.color_b = b;
-					brush.clarity = c;
-					brush.emission = e;
-					brush.palette_id = p;
-					brush.variant = v;
-
-					var bs = 1;
-					var circle = document.getElementById("circle");
-					var zaznaczenie = document.getElementById('kwadratowypedzelid');
-
-
-					var slider4 = document.getElementById("BsRange");
-					var output4 = document.getElementById("demo4");
-					output4.innerHTML = slider4.value; // Display the default slider value
-					slider4.oninput = function () {
-						output4.innerHTML = slider4.value;
-						bs = parseInt(slider4.value);
-						circle.style.height = (bs * 2).toString() + "px";
-						circle.style.width = (bs * 2).toString() + "px";
-						var x = 443;
-						var y = 145;
-
-						circle.style.left = (x - bs * 2 / 2).toString() + "px";
-						circle.style.top = (y - bs * 1).toString() + "px";
-						brush.diameter = bs;
-					}
-					zaznaczenie.checked = false;
-					brush.type = zaznaczenie.checked;
-					zaznaczenie.addEventListener('change', () => {
-						if (zaznaczenie.checked) {
-							circle.style.borderRadius = (0).toString() + "%";
-							console.log("z");
-						}
-						else {
-							circle.style.borderRadius = (50).toString() + "%";
-						}
-						brush.type = zaznaczenie.checked;
-					});
-
-					slider4.value = bs;
-
-					circle.style.height = (bs * 2).toString() + "px";
-					circle.style.width = (bs * 2).toString() + "px";
-					var x = 443;
-					var y = 145;
-
-					circle.style.left = (x - bs * 2 / 2).toString() + "px";
-					circle.style.top = (y - bs * 1).toString() + "px";
-					brush.diameter = bs;
-					output4.innerHTML = bs;
-
-				</script>
-				<script>
-
-					var ms = 50;
-					var fs = 50;
-
-					var slider5 = document.getElementById("MSRange");
-					var output5 = document.getElementById("demo5");
-					output5.innerHTML = slider5.value; // Display the default slider value
-					slider5.oninput = function () {
-						output5.innerHTML = slider5.value;
-						ms = parseInt(slider5.value);
-						sensivity = ms / 100;
-					}
-					slider5.value = ms;
-					output5.innerHTML = ms;
-					sensivity = ms / 100;
-
-					var slider6 = document.getElementById("FSRange");
-					var output6 = document.getElementById("demo6");
-					output6.innerHTML = slider6.value; // Display the default slider value
-					slider6.oninput = function () {
-						output6.innerHTML = slider6.value;
-						fs = parseInt(slider6.value);
-						speed = fs / 50;
-					}
-					slider6.value = fs;
-					output6.innerHTML = fs;
-					speed = fs / 50;
-
-				</script>
 			</div>
 		</div>
 		<div id="right-toolbar-blockPicker"></div>

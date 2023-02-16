@@ -86,24 +86,20 @@ window.addEventListener("keydown", function (event) {
 
         switch (event.code) {
             case "KeyW":
-            case "ArrowUp":
                 glMatrix.vec3.scaleAndAdd(pos, pos, direction, realSpeed);
                 break;
 
             case "KeyS":
-            case "ArrowDown":
                 glMatrix.vec3.scaleAndAdd(pos, pos, direction, -realSpeed);
                 break;
 
             case "KeyA":
-            case "ArrowLeft":
                 glMatrix.vec3.cross(vec, direction, vec_up);
                 glMatrix.vec3.normalize(vec, vec);
                 glMatrix.vec3.scaleAndAdd(pos, pos, vec, realSpeed);
                 break;
 
             case "KeyD":
-            case "ArrowRight":
                 glMatrix.vec3.cross(vec, direction, vec_up);
                 glMatrix.vec3.normalize(vec, vec);
                 glMatrix.vec3.scaleAndAdd(pos, pos, vec, -realSpeed);
@@ -112,6 +108,7 @@ window.addEventListener("keydown", function (event) {
             case "KeyQ":
                 pos[1] -= realSpeed;
                 break;
+
             case "KeyE":
                 pos[1] += realSpeed;
                 break;
@@ -126,13 +123,32 @@ window.addEventListener("keydown", function (event) {
                 paint = 4
                 break;
 
-            //select edit mode
-            case "KeyP":
-                togglePrecision();
-                break;
-
             case "Space":
                 paint = 1;
+                break;
+
+            case "ArrowUp":
+                brush.palette_id = clamp(brush.palette_id - 1, 0, 255);
+                displayPreviews();
+                updateSliders();
+                break;
+
+            case "ArrowDown":
+                brush.palette_id = clamp(brush.palette_id + 1, 0, 255);
+                displayPreviews();
+                updateSliders();
+                break;
+
+            case "ArrowLeft":
+                brush.variant = clamp(brush.variant + 1, 0, 8);
+                displayPreviews();
+                updateSliders();
+                break;
+
+            case "ArrowRight":
+                brush.variant = clamp(brush.variant - 1, 0, 8);
+                displayPreviews();
+                updateSliders();
                 break;
 
             default:
@@ -155,6 +171,11 @@ window.addEventListener("keydown", function (event) {
         case "ShiftLeft":
             variantsPanel.style.display = 'block';
             shift = true;
+            break;
+
+        //select edit mode
+        case "KeyP":
+            precisionButton();
             break;
 
         //exit pointer lock
@@ -181,13 +202,9 @@ window.addEventListener("keyup", function (event) {
             break;
 
         case "KeyW":
-        case "ArrowUp":
         case "KeyS":
-        case "ArrowDown":
         case "KeyA":
-        case "ArrowLeft":
         case "KeyD":
-        case "ArrowRight":
         case "KeyQ":
         case "KeyE":
             acceleration = 0.1;
@@ -201,7 +218,12 @@ window.addEventListener("keyup", function (event) {
 
 function togglePrecision() {
     subvoxel_paint = !subvoxel_paint;
-    showPrecision(subvoxel_paint);
+    console.log("subvoxel_paint: " + subvoxel_paint);
+    return subvoxel_paint;
+}
+
+function setPrecision(subvoxel) {
+    subvoxel_paint = subvoxel;
     console.log("subvoxel_paint: " + subvoxel_paint);
 }
 
@@ -311,7 +333,7 @@ function displayPreviews() {
             let id = index + brush.palette_id - centerId;
             //last icon is being used for indices out of array bounds
             if (id >= pal_size || id < 0) id = pal_size;
-            preview.putImageData(previewImageData[id][0], 0, 0);
+            preview.putImageData(previewImageData[id][brush.variant % 8], 0, 0);
         });
         variantPreview.forEach((preview, index) => {
             let id = brush.palette_id;

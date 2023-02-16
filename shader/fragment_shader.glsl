@@ -326,15 +326,15 @@ void main() {
 	vec3 prim_box_pos = vec3(0, 0, 0);
 
 	// set background color
-	scene.background = mix(vec3(184, 242, 255) / 255.0f, vec3(0, 162, 255) / 255.0f, ray.dir.y * 0.5f);
-	vec4 pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
+	vec3 backgroundColor = mix(scene.background, vec3(0, 162, 255) / 255.0f, ray.dir.y * 0.5f);
+	vec4 pixel_color = vec4(backgroundColor, far);
 	vec3 primary_hit = vec3(0.0f);
 	int deb_cnt_loc = 0;
 
 	float seed = centerPos.x + centerPos.y * 3.43121412313 + fract(1.12345314312 * scene.screen.z);
 
 	for (int bounces = 0; bounces < 3; bounces++) {
-		vec4 ray_pixel_color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
+		vec4 ray_pixel_color = vec4(backgroundColor, far);
 		vec3 hit = vec3(0, 0, 0);
 		vec3 box_pos = vec3(0, 0, 0);
 		vec4 vmat = vec4(0, 0, 0, 0);
@@ -342,7 +342,7 @@ void main() {
 		int samples = (bounces == 0) ? 2 + gi_samples : 2;
 		for (int spp = 0; spp < samples; spp++) {
 
-			vec4 color = vec4(scene.background.x, scene.background.y, scene.background.z, far);
+			vec4 color = vec4(backgroundColor, far);
 			float max_dist = (spp < 2) ? (far) : (far / 8.0f);
 
 			float tmp_dist = 0.0f;
@@ -367,9 +367,11 @@ void main() {
 					illumination += vec3(6.0f);
 				}
 				if (vmat.y > 0.0f) { 
+					//if hit light source make sure the clamped multiplier is 1.0
 					illumination = vec3(64.0f);
 				}
 				if (ray_pixel_color.w >= far) {
+					//if hit sky prevent it from being dimmed
 					illumination = vec3(64.0f);
 				}
 
@@ -377,12 +379,14 @@ void main() {
 			else if (spp == 1) {
 				if (color.w < far) {
 					illumination *= 0.1f;
-				}				
+				}
 			}
 			else {
 				if (color.w < far)
+					//add light from hit voxel
 					illumination += vec3(tmpmat.y) * color.xyz * 12.0f;
 				else
+					//add sky light
 					illumination += vec3(0.9f);
 			}
 			if (color.w >= far && spp == 0) {
@@ -402,9 +406,7 @@ void main() {
 
 				if (bounces == 0 && spp == 0) {
 					primary_hit = hit;
-				}
-
-				
+				}				
 
 				vec3 dir;
 				if (spp < 1) {
@@ -421,7 +423,6 @@ void main() {
 					);
 				}
 				else {
-
 					dir = ray.dir;
 					vec3 normal = vec3(1.0f);
 					normal.x = ((hit.x >= box_pos.x + 0.5f) ? 1.0f : 
@@ -433,7 +434,7 @@ void main() {
 					normal.z = ((hit.z >= box_pos.z + 0.5f) ? 1.0f : 
 						((hit.z <= box_pos.z - 0.5f) ? -1.0f : 0.0f));
 
-					dir = cosWeightedRandomHemisphereDirection(normal, seed);
+					dir = cosWeightedRandomHemisphereDirection(normal + vec3(0.001f), seed);
 				}
 
 				load_ray(ray, dir, origin);
@@ -441,10 +442,8 @@ void main() {
 		}
 
 		if (ray_pixel_color.w >= far) {
-			scene.background = mix(vec3(184, 242, 255) / 255.0f, vec3(0, 162, 255) / 255.0f, ray.dir.y * 0.5f);
-			ray_pixel_color.x = scene.background.x;
-			ray_pixel_color.y = scene.background.y;
-			ray_pixel_color.z = scene.background.z;
+			backgroundColor = mix(scene.background, vec3(0, 162, 255) / 255.0f, ray.dir.y * 0.5f);
+			ray_pixel_color.xyz = backgroundColor;
 		}
 
 		if (bounces == 0) {

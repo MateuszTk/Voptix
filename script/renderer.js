@@ -37,7 +37,7 @@ function main() {
 var mouseX = 0, mouseY = 0;
 var pos = glMatrix.vec3.fromValues(0, 65, 0);
 var chunk_offset = glMatrix.vec3.fromValues(20, 0, 20);
-var vec3_minus_one = glMatrix.vec3.fromValues(-1.0, -1.0, -1.0);
+const vec3_minus_one = glMatrix.vec3.fromValues(-1.0, -1.0, -1.0);
 var rotation = glMatrix.vec3.create();
 var cursor = glMatrix.vec3.create();
 var angle = glMatrix.vec3.create();
@@ -63,7 +63,6 @@ const chunk_map = new Map;
 var fb_textures = [];
 var fb;
 var pp_fb;
-var fb_pixels; //uint8array
 
 const octree_depth = 7;
 const chunk_size = ((1 - Math.pow(8, (octree_depth + 1))) / -7) * pixelsPerVoxel;
@@ -550,8 +549,6 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     gl.uniform2f(disp_location, canvas.width, canvas.height);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
-    fb_pixels = new Uint8Array(4 * canvas.width * canvas.height);
-
     //call start in worldgen.js
     start();
 
@@ -645,14 +642,27 @@ setInterval(function () {
     animationTime = (animationTime + 1) % 8;
 }, 250);
 
+/*var resizeb = false;
+function resizeBuffers(canvas) {
+    if (resizeb) {
+        canvas.width = 800;
+        for (let z = 0; z < fb_textures.length; z++) {
+            gl.bindTexture(gl.TEXTURE_2D, fb_textures[z]);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        }
+        resize = false;
+    }
+}*/
+
 function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, time) {
     updateCamera(gl);
+    //resizeBuffers(canvas);
     const scene = [
         (pos[0] + 1.5 * size) * subSize, (pos[1]) * subSize, (pos[2] + 1.5 * size) * subSize,
         rotation[0], rotation[1], animationTime,
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],
         canvas.width, canvas.height, frame,
-        3.0 / 255.0, 219.0 / 255.0, 252.0 / 255.0, //background
+        184.0 / 255.0, 242.0 / 255.0, 255.0 / 255.0, //background (r g b)
         1.2, 0.01, 100000.0, //projection (fov near far)
         (prev_position[0] + 1.5 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + 1.5 * size) * subSize,
         prev_rotation[0], prev_rotation[1], prev_rotation[2]

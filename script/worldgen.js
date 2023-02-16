@@ -55,8 +55,9 @@ function start() {
         }
     }
 
-    for (let i = 5; i < pal_size; i++) {
-        for (let variant = 0; variant < pal_variants; variant++) {
+    for (let i = 0; i < pal_size; i++) {
+        let startVariant = (i > 4) ? 0 : 1;
+        for (let variant = startVariant; variant < pal_variants; variant++) {
             for (let x = 6; x < 10; x++) {
                 pal_octree_set(x % 8, 0, 0, 50, 50, 50, 255, 0, 0, i, variant);
                 pal_octree_set(x % 8, 7, 0, 50, 50, 50, 255, 0, 0, i, variant);
