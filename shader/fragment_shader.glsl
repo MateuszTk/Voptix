@@ -11,7 +11,8 @@ precision highp sampler3D;
 #define GREEN 1
 #define BLUE 2
 #define ALPHA 3
-//#define CLARITY 0
+
+//#define LOD
 
 const float chunk_size = 128.0f * 8.0f;
 
@@ -220,19 +221,25 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 	vec3 nextrayLength1D = vec3(0.0f);
 	
 	vec3 pos_floor;
-
+#ifdef LOD
+	float minLayer = 0.0f;
+	float LODmultiplier = 0.001f;
+#else
+	const float minLayer = 0.0f;
+#endif
 	float dist = 0.0f;
 	bool vHit = false;
-	float layer = 0.0f;
+	float layer = minLayer;
 	bool move = true;
 	vec2 mask;
+
 	while (!vHit && dist < max_dist) {
 		debug_cnt++;
 		move = true;
 		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * 3.0f && testPos.y < chunk_size && testPos.z < chunk_size * 3.0f) {
 			getVoxel(testPos, layer, mask, 0.0f);
 			if (mask.x > 0.0f) {
-				if (layer == 0.0f) {
+				if (layer <= minLayer) {
 					//found intersection
 					vHit = true;
 				}
@@ -259,6 +266,9 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 
 			//position of curently tested voxel
 			testPos = ray.orig + (ndir * (dist + 0.01f));
+#ifdef LOD
+			minLayer = clamp(floor(dist * LODmultiplier), 0.0f, 2.0f);
+#endif
 		}
 	}
 
@@ -268,9 +278,9 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 
 		//get material
 		float palette_id = getVoxel(testPos, 3.0f, mask, 0.0f).r;
-		vec4 vox_mat = getVoxel(testPos, 0.0f, mask, 1.0f);
+		vec4 vox_mat = getVoxel(testPos, minLayer, mask, 1.0f);
 
-		vec4 vox = getVoxel(testPos, 0.0f, mask, 0.0f);
+		vec4 vox = getVoxel(testPos, minLayer, mask, 0.0f);
 		voutput.x = vox.x;
 		voutput.y = vox.y;
 		voutput.z = vox.z;

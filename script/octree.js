@@ -33,7 +33,7 @@ function palGetElement(x, y, z, slot, element, variant) {
 }
 
 function pal_octree_set(x, y, z, r, g, b, a, s, e, slot, variant) {
-    //variants with indices greater than number of variants are animated versions
+    //variants with indices greater than number of variants are animated
     if (variant >= pal_variants) return;
 
     if (a > 0) {
@@ -46,9 +46,16 @@ function pal_octree_set(x, y, z, r, g, b, a, s, e, slot, variant) {
             zo = (z >> (subOctreeDepth - depth)) * pow2 * pow2;
 
             let pal_variant_z_offset = pow2 * pow2 * pow2 * variant * pal_pix_cnt;
+            let pal_material_y_offset = pow2 * pow2 * pal_size * 4;
             let ind = ((xo + slot * pow2) + (yo + zo * pal_pix_cnt + pal_variant_z_offset) * pal_size) * 4;
             let oc = (((x >> (subOctreeDepth - 1 - depth)) & 1) * 1) + (((y >> (subOctreeDepth - 1 - depth)) & 1) * 2) + (((z >> (subOctreeDepth - 1 - depth)) & 1) * 4);
             palette[subOctreeDepth - depth][ind + 3] |= 1 << oc;
+            palette[subOctreeDepth - depth][ind + 0] = r;
+            palette[subOctreeDepth - depth][ind + 1] = g;
+            palette[subOctreeDepth - depth][ind + 2] = b;
+            palette[subOctreeDepth - depth][ind + pal_material_y_offset] = s;
+            palette[subOctreeDepth - depth][ind + pal_material_y_offset + 1] = e;
+            //palSetColor(xo, yo, zo, s, e, 0, slot, subOctreeDepth - depth, pow2, 1, variant);
 
             pow2 *= 2;
         }
