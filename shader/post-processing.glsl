@@ -29,6 +29,7 @@ void main() {
     vec4 p_light = texture(color[2], gl_FragCoord.xy / screen_size);
     vec4 low_light = texture(color[1], gl_FragCoord.xy / screen_size);
     
+    //accumuate light from neighbors
     vec3 p_normal = p_light.xyz;
     if (p_normal != vec3(0, 0, 0)) {
         for (int i = 0; i < 4; i++) {
@@ -40,6 +41,7 @@ void main() {
         }
     }
 
+    //average light from neighbors and this pixel
     light = (light + low_light) / cnt;
 
     light.w = low_light.w;

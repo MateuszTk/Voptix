@@ -62,22 +62,22 @@ vec3 randomSphereDirection(inout float seed) {
 	return vec3(sqrt(1. - h.x * h.x) * vec2(sin(phi), cos(phi)), h.x);
 }
 
-vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element) {
+vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element, float voxelSize) {
 	vec4 fvoxel;
+
+	//move sampling point to the center of the texel
+	fpos = (floor(fpos / voxelSize) + 0.5f) * voxelSize;
+
 	vec3 ofpos = fpos;
 	float olevel = level;
 
-	ivec3 pos = ivec3(fpos);
-	ivec3 chu = pos / int(chunk_size);
-	int chunk = chunk_map[chu.z][chu.x];
-
 	fpos /= chunk_size;
-	//fpos -= vec3(chu);
+	ivec3 chunkPos = ivec3(fpos);
+	int chunk = chunk_map[chunkPos.z][chunkPos.x];
 
 	//3 lowest levels are subvoxels
 	level -= 3.0f;
 	level = (level < 0.0f) ? 0.0f : level;
-
 
 	if (chunk == 0) {
 		fvoxel = textureLod(u_textures[0], fpos, level);
@@ -237,7 +237,7 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 		debug_cnt++;
 		move = true;
 		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * 3.0f && testPos.y < chunk_size && testPos.z < chunk_size * 3.0f) {
-			getVoxel(testPos, layer, mask, 0.0f);
+			getVoxel(testPos, layer, mask, 0.0f, cellSize);
 			if (mask.x > 0.0f) {
 				if (layer <= minLayer) {
 					//found intersection
@@ -277,10 +277,10 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 		max_dist = dist;		
 
 		//get material
-		float palette_id = getVoxel(testPos, 3.0f, mask, 0.0f).r;
-		vec4 vox_mat = getVoxel(testPos, minLayer, mask, 1.0f);
+		float palette_id = getVoxel(testPos, 3.0f, mask, 0.0f, 1.0f).r;
+		vec4 vox_mat = getVoxel(testPos, minLayer, mask, 1.0f, 1.0f);
 
-		vec4 vox = getVoxel(testPos, minLayer, mask, 0.0f);
+		vec4 vox = getVoxel(testPos, minLayer, mask, 0.0f, 1.0f);
 		voutput.x = vox.x;
 		voutput.y = vox.y;
 		voutput.z = vox.z;
@@ -298,7 +298,7 @@ bool occlusion(vec3 delta_pos, vec3 box_pos, int scx, int scz) {
 	vec3 test = box_pos + delta_pos;
 	if (test.y < 0.0f || test.y >= chunk_size) return false;
 	vec2 mask;
-	return (getVoxel(test, 0.0f, mask, 0.0f).w > 0.0f);
+	return (getVoxel(test, 0.0f, mask, 0.0f, 1.0f).w > 0.0f);
 }
 
 void main() {
