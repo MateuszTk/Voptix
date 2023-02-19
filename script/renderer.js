@@ -22,10 +22,10 @@ function main() {
 
     initBlockPicker();
 
-    fetch('./shader/vertex_shader.glsl').then((response) => response.text()).then((vertex) => {
-        fetch('./shader/fragment_shader.glsl').then((response2) => response2.text()).then((fragment) => {
-            fetch('./shader/post-processing.glsl').then((pp_response2) => pp_response2.text()).then((pp_fragment) => {
-                fetch('./shader/display.glsl').then((disp_response2) => disp_response2.text()).then((disp_fragment) => {
+    fetch('./shader/vertex_shader.vert').then((response) => response.text()).then((vertex) => {
+        fetch('./shader/fragment_shader.frag').then((response2) => response2.text()).then((fragment) => {
+            fetch('./shader/post-processing.frag').then((pp_response2) => pp_response2.text()).then((pp_fragment) => {
+                fetch('./shader/display.frag').then((disp_response2) => disp_response2.text()).then((disp_fragment) => {
                     init(vertex, fragment, gl, canvas, pp_fragment, disp_fragment);
                 });
             });
@@ -662,10 +662,15 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
         rotation[0], rotation[1], animationTime,
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],
         canvas.width, canvas.height, frame,
-        184.0 / 255.0, 242.0 / 255.0, 255.0 / 255.0, //background (r g b)
         1.2, 0.01, 100000.0, //projection (fov near far)
         (prev_position[0] + 1.5 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + 1.5 * size) * subSize,
-        prev_rotation[0], prev_rotation[1], prev_rotation[2]
+        prev_rotation[0], prev_rotation[1], prev_rotation[2],
+        sceneConfig.skyColorUP[0], sceneConfig.skyColorUP[1], sceneConfig.skyColorUP[2],
+        sceneConfig.skyColorDown[0], sceneConfig.skyColorDown[1], sceneConfig.skyColorDown[2],
+        sceneConfig.skyLight[0], sceneConfig.skyLight[1], sceneConfig.skyLight[2],
+        sceneConfig.sunColor[0], sceneConfig.sunColor[1], sceneConfig.sunColor[2],
+        sceneConfig.sunDirection[0], sceneConfig.sunDirection[1], sceneConfig.sunDirection[2],
+        sceneConfig.sunSize, sceneConfig.sunDiscSharpness, sceneConfig.sunShadowSharpness
     ];
     frame += 0.5;
     if (frame >= 0xffffff) frame = 0.0;

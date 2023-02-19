@@ -23,7 +23,7 @@ uniform sampler3D u_textures[chunk_count];
 uniform sampler3D u_palette;
 uniform sampler2D noise;
 uniform sampler2D light_low;
-uniform vec3[8] scene_data;
+uniform vec3[13] scene_data;
 uniform ivec3[3] chunk_map;
 
 int debug_cnt = 0;
@@ -145,10 +145,15 @@ struct Scene {
 	vec3 camera_direction;
 	vec3 chunk_offset;
 	vec3 screen;
-	vec3 background;
 	vec3 projection;
 	vec3 prev_pos;
 	vec3 prev_rot;
+	vec3 skyColorUp;
+	vec3 skyColorDown;
+	vec3 skyLight;
+	vec3 sunColor;
+	vec3 sunDirection;
+	vec3 sunParam;
 };
 
 void load_direction(inout vec3 vec, vec3 rotation) {
@@ -301,6 +306,12 @@ bool occlusion(vec3 delta_pos, vec3 box_pos, int scx, int scz) {
 	return (getVoxel(test, 0.0f, mask, 0.0f, 1.0f).w > 0.0f);
 }
 
+vec3 getBackgroundColor(vec3 skyColorDown, vec3 skyColorUp, Ray ray, vec3 sunRayDir, vec3 sunColor, vec3 sunParam){
+	float dist =  distance(ray.dir, sunRayDir);
+	vec3 sky = mix(skyColorDown, skyColorUp, ray.dir.y * 0.5f);
+	return mix(sunColor * 1.5f, sky, clamp(log(dist * sunParam.y) * sunParam.x, 0.0f, 1.0f));
+}
+
 void main() {
 
 	Scene scene = Scene(
@@ -311,7 +322,12 @@ void main() {
 		scene_data[4],
 		scene_data[5],
 		scene_data[6],
-		scene_data[7]
+		scene_data[7],
+		scene_data[8],
+		scene_data[9],
+		scene_data[10],
+		scene_data[11],
+		scene_data[12]
 	);
 
 	vec2 pos = vec2(gl_FragCoord.x, gl_FragCoord.y);
@@ -332,11 +348,12 @@ void main() {
 	vec4 prevmat = vec4(0, 0, 0, 0);
 	vec4 tmpmat = vec4(0, 0, 0, 0);
 	int gi_samples = 2;
-	vec3 illumination = vec3(0.8f * float(gi_samples));
+	vec3 illumination =	scene.sunColor * float(gi_samples);
 	vec3 prim_box_pos = vec3(0, 0, 0);
 
 	// set background color
-	vec3 backgroundColor = mix(scene.background, vec3(0, 162, 255) / 255.0f, ray.dir.y * 0.5f);
+	scene.sunDirection = normalize(scene.sunDirection);
+	vec3 backgroundColor = getBackgroundColor(scene.skyColorDown, scene.skyColorUp, ray, scene.sunDirection, scene.sunColor, scene.sunParam);
 	vec4 pixel_color = vec4(backgroundColor, far);
 	vec3 primary_hit = vec3(0.0f);
 	int deb_cnt_loc = 0;
@@ -388,6 +405,7 @@ void main() {
 			}
 			else if (spp == 1) {
 				if (color.w < far) {
+					//if in shadow
 					illumination *= 0.1f;
 				}
 			}
@@ -397,7 +415,7 @@ void main() {
 					illumination += vec3(tmpmat.y) * color.xyz * 12.0f;
 				else
 					//add sky light
-					illumination += vec3(0.9f);
+					illumination += scene.skyLight;
 			}
 			if (color.w >= far && spp == 0) {
 				break;
@@ -425,12 +443,9 @@ void main() {
 					rnd.y = rnd.y * 2.0f - 1.0f;
 
 					//shadow ray
-					rnd *= 0.1f;
-					dir = vec3(
-						2.0f + rnd.x,
-						1.0f + rnd.y,
-						-1.0f + rnd.z
-					);
+					//shadow sharpness
+					rnd *= scene.sunParam.z; 
+					dir = scene.sunDirection + rnd;
 				}
 				else {
 					dir = ray.dir;
@@ -452,7 +467,7 @@ void main() {
 		}
 
 		if (ray_pixel_color.w >= far) {
-			backgroundColor = mix(scene.background, vec3(0, 162, 255) / 255.0f, ray.dir.y * 0.5f);
+			backgroundColor = getBackgroundColor(scene.skyColorDown, scene.skyColorUp, ray, scene.sunDirection, scene.sunColor, scene.sunParam);
 			ray_pixel_color.xyz = backgroundColor;
 		}
 
