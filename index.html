@@ -60,7 +60,12 @@
 								<input type="range" min="0" max="255" value="255" id="ERange">
 								<span id="Etext"></span><br>
 							</div>
-							<button type="button" class="button" onclick="addToPalette(brush.color_r, brush.color_g, brush.color_b, brush.clarity, brush.emission, brush.palette_id);">Fill</button>
+							<div class="slider" style="color: white;">
+								<label for="RoRange">R.&nbsp;</label>
+								<input type="range" min="0" max="255" value="0" id="RoRange">
+								<span id="Rotext"></span><br>
+							</div>
+							<button type="button" class="button" onclick="addToPalette(brush.color_r, brush.color_g, brush.color_b, brush.clarity, brush.emission, brush.roughness, brush.palette_id);">Fill</button>
 						</div>
 						<div id="previewMask" style="float: right;">
 							<img src="/images/gora.jpg" width="200" height="200" id="matPreview">

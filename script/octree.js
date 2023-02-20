@@ -32,7 +32,7 @@ function palGetElement(x, y, z, slot, element, variant) {
     ];
 }
 
-function pal_octree_set(x, y, z, r, g, b, a, s, e, slot, variant) {
+function pal_octree_set(x, y, z, r, g, b, a, s, e, ro, slot, variant) {
     //variants with indices greater than number of variants are animated
     if (variant >= pal_variants) return;
 
@@ -55,12 +55,13 @@ function pal_octree_set(x, y, z, r, g, b, a, s, e, slot, variant) {
             palette[subOctreeDepth - depth][ind + 2] = b;
             palette[subOctreeDepth - depth][ind + pal_material_y_offset] = s;
             palette[subOctreeDepth - depth][ind + pal_material_y_offset + 1] = e;
+            palette[subOctreeDepth - depth][ind + pal_material_y_offset + 2] = ro;
             //palSetColor(xo, yo, zo, s, e, 0, slot, subOctreeDepth - depth, pow2, 1, variant);
 
             pow2 *= 2;
         }
         palSetElement(x, y, z, r, g, b, a, slot, 0, subSize, 0, variant);
-        palSetElement(x, y, z, s, e, 0, 0, slot, 0, subSize, 1, variant);
+        palSetElement(x, y, z, s, e, ro, 0, slot, 0, subSize, 1, variant);
     }
     else {
         palSetElement(x, y, z, 0, 0, 0, 0, slot, 0, subSize, 0, variant);

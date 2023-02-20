@@ -218,20 +218,18 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 
 	vec3 testPos = ray.orig;
 
-	float cellSize = 1.0f;
-
-	bvec3 comp = lessThan(ndir, vec3(0.0f));
-	vec3 rayLength1D = mix(floor(ray.orig) + cellSize - ray.orig, ray.orig - floor(ray.orig), comp) * unitStepSize;
-
-	vec3 nextrayLength1D = vec3(0.0f);
-	
-	vec3 pos_floor;
 #ifdef LOD
 	float minLayer = 0.0f;
 	float LODmultiplier = 0.001f;
 #else
 	const float minLayer = 0.0f;
 #endif
+	float cellSize = 1.0f;
+
+	bvec3 comp = lessThan(ndir, vec3(0.0f));
+	vec3 rayLength1D = mix(floor(ray.orig) + cellSize - ray.orig, ray.orig - floor(ray.orig), comp) * unitStepSize;
+	vec3 nextrayLength1D = vec3(0.0f);	
+	vec3 pos_floor;
 	float dist = 0.0f;
 	bool vHit = false;
 	float layer = minLayer;
@@ -346,10 +344,10 @@ void main() {
 	Ray primary_ray = ray;
 
 	vec4 prevmat = vec4(0, 0, 0, 0);
-	vec4 tmpmat = vec4(0, 0, 0, 0);
 	int gi_samples = 2;
 	vec3 illumination =	scene.sunColor * float(gi_samples);
-	vec3 prim_box_pos = vec3(0, 0, 0);
+	vec3 prim_box_pos = vec3(0.0f);
+	vec4 prim_mat = vec4(0.0f);
 
 	// set background color
 	scene.sunDirection = normalize(scene.sunDirection);
@@ -364,6 +362,7 @@ void main() {
 		vec4 ray_pixel_color = vec4(backgroundColor, far);
 		vec3 hit = vec3(0, 0, 0);
 		vec3 box_pos = vec3(0, 0, 0);
+		//material of voxel hit by the first ray (primary or reflection - not shadow)
 		vec4 vmat = vec4(0, 0, 0, 0);
 
 		int samples = (bounces == 0) ? 2 + gi_samples : 2;
@@ -375,6 +374,7 @@ void main() {
 			float tmp_dist = 0.0f;
 
 			vec3 box_pos_t = vec3(-1, -1, -1);
+			vec4 tmpmat = vec4(0, 0, 0, 0);
 			octree_get_pixel(ray, max_dist, color, tmpmat, box_pos_t);
 			if (spp == 0 && bounces == 0)
 				deb_cnt_loc = debug_cnt;
@@ -389,6 +389,7 @@ void main() {
 				ray_pixel_color = color;
 				if (bounces == 0) { 
 					prim_box_pos = box_pos;
+					prim_mat = tmpmat;
 				}
 				else {
 					illumination += vec3(6.0f);
@@ -438,16 +439,14 @@ void main() {
 
 				vec3 dir;
 				if (spp < 1) {
-					vec3 rnd = hash3(seed);
-					rnd.x = rnd.x * 2.0f - 1.0f;
-					rnd.y = rnd.y * 2.0f - 1.0f;
-
-					//shadow ray
 					//shadow sharpness
-					rnd *= scene.sunParam.z; 
-					dir = scene.sunDirection + rnd;
+					vec3 jitter = hash3(seed) * 2.0f - 1.0f;
+					jitter *= scene.sunParam.z; 
+					//shadow ray
+					dir = scene.sunDirection + jitter;
 				}
 				else {
+					//GI ray
 					dir = ray.dir;
 					vec3 normal = vec3(1.0f);
 					normal.x = ((hit.x >= box_pos.x + 0.5f) ? 1.0f : 
@@ -547,18 +546,27 @@ void main() {
 			}
 		}
 		else {
+			//blend reflections
 			float intensity = prevmat.x;
-			pixel_color.x = clamp((pixel_color.x + ray_pixel_color.x * intensity) / (1.0f + intensity), 0.0f, 1.0f);
-			pixel_color.y = clamp((pixel_color.y + ray_pixel_color.y * intensity) / (1.0f + intensity), 0.0f, 1.0f);
-			pixel_color.z = clamp((pixel_color.z + ray_pixel_color.z * intensity) / (1.0f + intensity), 0.0f, 1.0f);
+			if(prevmat.z <= 0.0f && prim_mat.z <= 0.0f){
+				//specular reflection
+				pixel_color.xyz = mix(pixel_color.xyz, ray_pixel_color.xyz, intensity);
+			}
+			else{
+				//mate reflection (goes to the denoiser together with illumination)
+				illumination.xyz = mix(pixel_color.xyz, ray_pixel_color.xyz, intensity) * clamp(illumination.xyz, vec3(0.0f), vec3(1.0f)) * float(gi_samples);
+			}
 		}
 
 		if (vmat.x <= 0.0f) break;
 		else prevmat = vmat;
 
+		//reflection ray
 		if (ray_pixel_color.w >= far) break;
 		Bounce(primary_ray, hit, box_pos, 0.5f);
+		vec3 jitter = (hash3(seed) * 2.0f - 1.0f) * 0.2f * prevmat.z;
 		ray = primary_ray;
+		ray.dir += jitter;
 	}
 	
 	float w = pixel_color.w;

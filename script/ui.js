@@ -27,6 +27,7 @@ function updateBrush() {
 	brush.color_b = b;
 	brush.clarity = c;
 	brush.emission = e;
+	brush.roughness = ro;
 	brush.palette_id = p;
 	brush.variant = v;
 }
@@ -63,7 +64,7 @@ function precisionButton() {
 }
 openTab(0);
 
-var r = 255, g = 255, b = 255, c = 0, e = 0, p = 0, v = 0;
+var r = 255, g = 255, b = 255, c = 0, e = 0, p = 0, v = 0, ro = 0;
 var gora = document.getElementById("matPreview");
 var previewMask = document.getElementById("previewMask");
 
@@ -81,6 +82,8 @@ var sliderP = document.getElementById("PRange");
 var outputP = document.getElementById("Ptext");
 var sliderV = document.getElementById("VRange");
 var outputV = document.getElementById("Vtext");
+var sliderRo = document.getElementById("RoRange");
+var outputRo = document.getElementById("Rotext");
 var bs = 1;
 var circle = document.getElementById("circle");
 var zaznaczenie = document.getElementById('kwadratowypedzelid');
@@ -130,6 +133,14 @@ sliderE.oninput = function () {
 	updateBrush();
 }
 
+outputRo.innerHTML = sliderRo.value; // Display the default slider value
+sliderRo.oninput = function () {
+	outputRo.innerHTML = sliderRo.value;
+	ro = parseInt(sliderRo.value);
+	gora.style.filter = "blur(" + ro / 50 + "px)";
+	updateBrush();
+}
+
 outputP.innerHTML = sliderP.value; // Display the default slider value
 sliderP.oninput = function () {
 	outputP.innerHTML = sliderP.value;
@@ -153,6 +164,7 @@ sliderG.value = g;
 sliderB.value = b;
 sliderA.value = c;
 sliderE.value = e;
+sliderRo.value = ro;
 sliderP.value = p;
 sliderV.value = v;
 
@@ -161,10 +173,12 @@ outputG.innerHTML = g;
 outputB.innerHTML = b;
 outputA.innerHTML = c;
 outputE.innerHTML = e;
+outputRo.innerHTML = ro;
 outputP.innerHTML = p;
 outputV.innerHTML = v;
 
 gora.style.opacity = c / 255;
+gora.style.filter = "blur(" + ro / 50 + "px)";
 previewMask.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
 updateBrush();
 

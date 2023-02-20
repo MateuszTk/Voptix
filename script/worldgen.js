@@ -16,11 +16,11 @@ function start() {
         for (let y = 0; y < 8; y++) {
             for (let z = 4; z < 8; z++) {
                 if (Math.random() < 0.5)
-                    pal_octree_set(x, z, y, 0, 200, 0, 255, 0, 0, 0, vari);
+                    pal_octree_set(x, z, y, 0, 200, 0, 255, 0, 0, 0, 0, vari);
             }
 
             for (let z = 0; z < 4; z++) {
-                pal_octree_set(x, z, y, getRandomArbitrary(80, 110), 42, 0, 255, 0, 0, 0, vari);
+                pal_octree_set(x, z, y, getRandomArbitrary(80, 110), 42, 0, 255, 0, 0, 0, 0, vari);
             }
         }
     }
@@ -30,7 +30,7 @@ function start() {
             for (let z = 0; z < 8; z++) {
                 let color = getRandomArbitrary(60, 180);
                 if (Math.random() < 0.5)
-                    pal_octree_set(x, z, y, color, color, color, 255, 0, 0, 1, vari);
+                    pal_octree_set(x, z, y, color, color, color, 255, 0, 0, 0, 1, vari);
             }
         }
     }
@@ -38,7 +38,7 @@ function start() {
     for (let x = 0; x < 8; x++) {
         for (let y = 0; y < 8; y++) {
             for (let z = 0; z < 8; z++) {
-                pal_octree_set(x, z, y, getRandomArbitrary(80, 110), 42, 0, 255, 0, 0, 2, vari);
+                pal_octree_set(x, z, y, getRandomArbitrary(80, 110), 42, 0, 255, 0, 0, 0, 2, vari);
             }
         }
     }
@@ -46,7 +46,7 @@ function start() {
     for (let x = 0; x < 8; x++) {
         for (let y = 0; y < 8; y++) {
             for (let z = 0; z < 8; z++) {
-                pal_octree_set(x, z, y, 0, Math.random() * 120, 255, 255, Math.random() * 255, 0, 3, vari);
+                pal_octree_set(x, z, y, 0, Math.random() * 120, 255, 255, getRandomArbitrary(0, 200), 0, 0, 3, vari);
             }
         }
     }
@@ -54,13 +54,13 @@ function start() {
     for (let x = 3; x < 4; x++) {
         for (let y = 0; y < 6; y++) {
             for (let z = 3; z < 4; z++) {
-                pal_octree_set(x, y, z, 110, 42, 0, 255, 0, 0, 4, vari);
+                pal_octree_set(x, y, z, 110, 42, 0, 255, 0, 0, 0, 4, vari);
             }
         }
 
         for (let y = 6; y < 8; y++) {
             for (let z = 3; z < 4; z++) {
-                pal_octree_set(x, y, z, 255, 150, 0, 255, 0, 255, 4, vari);
+                pal_octree_set(x, y, z, 255, 150, 0, 255, 0, 255, 0, 4, vari);
             }
         }
     }
@@ -69,22 +69,22 @@ function start() {
         let startVariant = (i > 4) ? 0 : 1;
         for (let variant = startVariant; variant < pal_variants; variant++) {
             for (let x = 6; x < 10; x++) {
-                pal_octree_set(x % 8, 0, 0, 50, 50, 50, 255, 0, 0, i, variant);
-                pal_octree_set(x % 8, 7, 0, 50, 50, 50, 255, 0, 0, i, variant);
-                pal_octree_set(x % 8, 0, 7, 50, 50, 50, 255, 0, 0, i, variant);
-                pal_octree_set(x % 8, 7, 7, 50, 50, 50, 255, 0, 0, i, variant);
+                pal_octree_set(x % 8, 0, 0, 50, 50, 50, 255, 0, 0, 0, i, variant);
+                pal_octree_set(x % 8, 7, 0, 50, 50, 50, 255, 0, 0, 0, i, variant);
+                pal_octree_set(x % 8, 0, 7, 50, 50, 50, 255, 0, 0, 0, i, variant);
+                pal_octree_set(x % 8, 7, 7, 50, 50, 50, 255, 0, 0, 0, i, variant);
             }
             for (let y = 6; y < 10; y++) {
-                pal_octree_set(0, y % 8, 0, 50, 50, 50, 255, 0, 0, i, variant);
-                pal_octree_set(7, y % 8, 0, 50, 50, 50, 255, 0, 0, i, variant);
-                pal_octree_set(0, y % 8, 7, 50, 50, 50, 255, 0, 0, i, variant);
-                pal_octree_set(7, y % 8, 7, 50, 50, 50, 255, 0, 0, i, variant);
+                pal_octree_set(0, y % 8, 0, 50, 50, 50, 255, 0, 0, 0, i, variant);
+                pal_octree_set(7, y % 8, 0, 50, 50, 50, 255, 0, 0, 0, i, variant);
+                pal_octree_set(0, y % 8, 7, 50, 50, 50, 255, 0, 0, 0, i, variant);
+                pal_octree_set(7, y % 8, 7, 50, 50, 50, 255, 0, 0, 0, i, variant);
             }
             for (let z = 6; z < 10; z++) {
-                pal_octree_set(0, 0, z % 8, 50, 50, 50, 255, 0, 0, i, variant);
-                pal_octree_set(0, 7, z % 8, 50, 50, 50, 255, 0, 0, i, variant);
-                pal_octree_set(7, 0, z % 8, 50, 50, 50, 255, 0, 0, i, variant);
-                pal_octree_set(7, 7, z % 8, 50, 50, 50, 255, 0, 0, i, variant);
+                pal_octree_set(0, 0, z % 8, 50, 50, 50, 255, 0, 0, 0, i, variant);
+                pal_octree_set(0, 7, z % 8, 50, 50, 50, 255, 0, 0, 0, i, variant);
+                pal_octree_set(7, 0, z % 8, 50, 50, 50, 255, 0, 0, 0, i, variant);
+                pal_octree_set(7, 7, z % 8, 50, 50, 50, 255, 0, 0, 0, i, variant);
             }
         }
     }

@@ -44,7 +44,7 @@ var angle = glMatrix.vec3.create();
 
 var cursor3D = glMatrix.vec3.create();
 var paint = 0;
-var brush = { diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, palette_id: 0, variant: 0, type: true };
+var brush = { diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, roughness: 0, palette_id: 0, variant: 0, type: true };
 var subvoxel_paint = false;
 
 const pixelsPerVoxel = 1;
@@ -278,7 +278,7 @@ function paste() {
                 for (let z = 0; z < 8; z++) {
                     let voxA = palGetElement(x, y, z, copied[0], 0, copied[1]);
                     let voxB = palGetElement(x, y, z, copied[0], 1, copied[1]);
-                    pal_octree_set(x, y, z, voxA[0], voxA[1], voxA[2], voxA[3], voxB[0], voxB[1], brush.palette_id, brush.variant);
+                    pal_octree_set(x, y, z, voxA[0], voxA[1], voxA[2], voxA[3], voxB[0], voxB[1], voxB[2], brush.palette_id, brush.variant);
                 }
             }
         }
@@ -558,14 +558,14 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     });
 }
 
-function addToPalette(r, g, b, s, e, slot) {
+function addToPalette(r, g, b, s, e, ro, slot) {
     console.log(brush.color_r);
     console.log(brush.color_g);
     console.log(brush.color_b);
     for (let x = 0; x < 8; x++) {
         for (let y = 0; y < 8; y++) {
             for (let z = 0; z < 8; z++) {
-                pal_octree_set(x, y, z, r, g, b, 255, s, e, slot, brush.variant);
+                pal_octree_set(x, y, z, r, g, b, 255, s, e, ro, slot, brush.variant);
             }
         }
     }
@@ -768,7 +768,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
                 }
             }
             if (parentVox[3] > 0) {
-                pal_octree_set(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, parentVox[0], parentVox[2]);
+                pal_octree_set(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, brush.roughness, parentVox[0], parentVox[2]);
                 updatePalette();
             }
         }
