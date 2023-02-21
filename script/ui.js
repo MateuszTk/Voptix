@@ -64,6 +64,19 @@ function precisionButton() {
 }
 openTab(0);
 
+function scaleUpdate(scale = -1) {
+	if (scale < 0) {
+		scale = document.getElementById("resScale").value;
+	}
+	else {
+		document.getElementById("resScale").value = scale;
+    }
+	const resolution = document.getElementById("resolutionSelect").value.split('x');
+	document.getElementById("resScaleText").innerHTML = scale + "%";
+	document.getElementById("resText").innerHTML = Math.floor(resolution[0] * scale / 100 / 2) * 2 + " x " + Math.floor(resolution[1] * scale / 100 / 2) * 2;
+}
+scaleUpdate();
+
 var r = 255, g = 255, b = 255, c = 0, e = 0, p = 0, v = 0, ro = 0;
 var gora = document.getElementById("matPreview");
 var previewMask = document.getElementById("previewMask");

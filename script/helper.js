@@ -6,11 +6,6 @@ function radians(angle) {
     return angle * (Math.PI / 180);
 }
 
-function resize(swidth, sheight) {
-    localStorage.setItem("swidth", swidth);
-    localStorage.setItem("sheight", sheight);
-}
-
 function clamp(num, min, max) {
     return ((num <= min) ? min : ((num >= max) ? max : num));
 }

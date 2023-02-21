@@ -3,9 +3,8 @@ var gl;
 function main() {
     const canvas = document.querySelector("#glCanvas");
     canvas.onmousedown = handleCanvasClick;
-    let sw = localStorage.getItem("swidth");
-    let sh = localStorage.getItem("sheight");
 
+    var [sw, sh] = readResolution();
     if (sw && sh) {
         canvas.width = sw;
         canvas.height = sh;
@@ -76,6 +75,38 @@ var prev_position = glMatrix.vec3.create();
 var deltaTime = 0;
 
 window.onload = main;
+
+function readResolution() {
+    let sw = localStorage.getItem("swidth");
+    let sh = localStorage.getItem("sheight");
+
+    if (sw && sh) {
+        const resolution = sw.toString() + "x" + sh.toString();
+        if (document.querySelector("#resolutionSelect option[value='" + resolution + "']"))
+            document.getElementById("resolutionSelect").value = resolution;
+        else {
+            let option = document.createElement("option");
+            option.value = resolution;
+            option.innerText = resolution;
+            document.getElementById("resolutionSelect").appendChild(option);
+            document.getElementById("resolutionSelect").value = resolution;
+        }
+        scaleUpdate(100);
+    }
+    return [sw, sh];
+}
+
+function resize(swidth, sheight) {
+    localStorage.setItem("swidth", swidth);
+    localStorage.setItem("sheight", sheight);
+}
+
+function resize() {
+    const resolution = document.getElementById("resolutionSelect").value.split('x');
+    const scale = document.getElementById("resScale").value;
+    localStorage.setItem("swidth", Math.floor(resolution[0] * scale / 100 / 2) * 2);
+    localStorage.setItem("sheight", Math.floor(resolution[1] * scale / 100 / 2) * 2);
+}
 
 function save(name) {
 
@@ -690,7 +721,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
         rotation[0], rotation[1], animationTime,0,
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],0,
         canvas.width, canvas.height, frame,0,
-        1.2, 0.01, 100000.0, 0,//projection (fov near far)
+        1.2, 0.01, 255.0 * 8.0, 0,//projection (fov near far)
         (prev_position[0] + 1.5 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + 1.5 * size) * subSize,0,
         prev_rotation[0], prev_rotation[1], prev_rotation[2],0,
         sceneConfig.skyColorUP[0], sceneConfig.skyColorUP[1], sceneConfig.skyColorUP[2],0,

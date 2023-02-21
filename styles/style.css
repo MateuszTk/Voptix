@@ -190,7 +190,6 @@ kbd {
     }
 
     #wrapper nav {
-        margin-top: 1em;
         width: 98%;
     }
 
@@ -244,18 +243,6 @@ h1 {
     margin: 0.5em 0em 0.5em 0em;
 }
 
-#polowaprzewijana {
-    position: absolute;
-    overflow: auto;
-    border-style: solid;
-    border-color: lightblue;
-    background-color: dimgrey;
-    right: -750px;
-    top: 0px;
-    width: 700px;
-    bottom: 0px;
-}
-
 #seedp {
     position: absolute;
     left: 35%;
@@ -272,14 +259,5 @@ h1 {
     width: 50px;
     background-color: greenyellow;
     border-radius: 10px;
-}
-
-.edytordlugi {
-    position: absolute;
-    left: 24%;
-    top: 5%;
-    font-size: 40px;
-    color: lightblue;
-    font-family: Impact
 }
 

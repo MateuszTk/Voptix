@@ -13,6 +13,7 @@ precision highp sampler3D;
 #define ALPHA 3
 
 //#define LOD
+//#define DEBUG
 
 const float chunk_size = 128.0f * 8.0f;
 
@@ -45,7 +46,9 @@ uniform Scene{
 	vec4 sunParam;
 } scene;
 
+#ifdef DEBUG
 int debug_cnt = 0;
+#endif
 float animationTime = 0.0f;
 
 float hash1(inout float seed) {
@@ -235,7 +238,9 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 	vec2 mask;
 
 	while (!vHit && dist < max_dist) {
+#ifdef DEBUG
 		debug_cnt++;
+#endif
 		move = true;
 		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * 3.0f && testPos.y < chunk_size && testPos.z < chunk_size * 3.0f) {
 			getVoxel(testPos, layer, mask, 0.0f, cellSize);
@@ -309,37 +314,36 @@ vec3 getBackgroundColor(Ray ray, vec3 sunRayDir){
 }
 
 void main() {
+#ifdef DEBUG
+	int deb_cnt_loc = 0;
+#endif
 
-	//Scene scene = scene_data;
-
+	//pixel position
 	vec2 pos = vec2(gl_FragCoord.x, gl_FragCoord.y);
 	//normalized pixel coordinates
 	vec2 centerPos = -1.0f + 2.0f * (pos.xy) / scene.screen.xy;
-
-	float fov = tan(scene.projection.x / 2.0f);
-	float near = scene.projection.y;
-	float far = 255.0f * 8.0f;//scene.projection.z;
-	animationTime = scene.camera_direction.z / 8.0f;
-
-	const float ray_retreat = 0.01f;
-
+	
+	
 	Ray ray;
+	float fov = tan(scene.projection.x / 2.0f);
+	float far = scene.projection.z;
 	load_primary_ray(ray, pos, scene.screen.x, scene.screen.y, fov);
 	Ray primary_ray = ray;
 
-	vec4 prevmat = vec4(0, 0, 0, 0);
-	int gi_samples = 2;
+	animationTime = scene.camera_direction.z / 8.0f;
+
+	const float ray_retreat = 0.01f;
+	const int gi_samples = 2;
+	
+	vec4 prevmat = vec4(0, 0, 0, 0);	
 	vec3 illumination =	scene.sunColor.xyz * float(gi_samples);
 	vec3 prim_box_pos = vec3(0.0f);
 	vec4 prim_mat = vec4(0.0f);
 
-	// set background color
 	vec3 sunDirection = normalize(scene.sunDirection.xyz);
 	vec3 backgroundColor = getBackgroundColor(ray, sunDirection);
 	vec4 pixel_color = vec4(backgroundColor, far);
 	vec3 primary_hit = vec3(0.0f);
-	int deb_cnt_loc = 0;
-
 	float seed = centerPos.x + centerPos.y * 3.43121412313 + fract(1.12345314312 * scene.screen.z);
 
 	for (int bounces = 0; bounces < 3; bounces++) {
@@ -360,20 +364,19 @@ void main() {
 			vec3 box_pos_t = vec3(-1, -1, -1);
 			vec4 tmpmat = vec4(0, 0, 0, 0);
 			octree_get_pixel(ray, max_dist, color, tmpmat, box_pos_t);
-			if (spp == 0 && bounces == 0)
-				deb_cnt_loc = debug_cnt;
-
-			if (spp == 0 && box_pos_t.x != -1.0f) {
-				box_pos = box_pos_t;
-				vmat = tmpmat;
-			}
-
-
+				
 			if (spp == 0) {
+				if (box_pos_t.x != -1.0f) {
+					box_pos = box_pos_t;
+					vmat = tmpmat;
+				}
 				ray_pixel_color = color;
 				if (bounces == 0) { 
 					prim_box_pos = box_pos;
 					prim_mat = tmpmat;
+#ifdef DEBUG
+					deb_cnt_loc = debug_cnt;
+#endif
 				}
 				else {
 					illumination += vec3(6.0f);
@@ -409,11 +412,7 @@ void main() {
 				ray = primary_ray;
 				color = ray_pixel_color;
 
-				vec3 origin = vec3(
-					ray.orig.x + ray.dir.x * (color.w - ray_retreat),
-					ray.orig.y + ray.dir.y * (color.w - ray_retreat),
-					ray.orig.z + ray.dir.z * (color.w - ray_retreat)
-				);
+				vec3 origin = ray.orig + ray.dir * (color.w - ray_retreat);
 
 				if (spp == 0) hit = origin;
 
@@ -603,20 +602,20 @@ void main() {
 	
 
 	//color output
-	//pixel_color.rgb = vec3(float(deb_cnt_loc) / 100.0f);
+#ifdef DEBUG
+	pixel_color.rgb = vec3(float(deb_cnt_loc) / 100.0f);
+#endif
 	outColor[0] = pixel_color;
 
 	//normals
-	vec3 normal = vec3(1.0f);//vec3(ivec3(prim_box_pos) % 255) / 255.0f;
+	vec3 normal = vec3(1.0f);
 	//gradient on normals helps denoiser not to blur edges
 	vec3 gradient = vec3(ivec3(prim_box_pos) % 255 + 1) / 255.0f;
 	normal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f || primary_hit.x <= prim_box_pos.x - 0.5f) ? gradient.x : 0.0f);
 	normal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f || primary_hit.y <= prim_box_pos.y - 0.5f) ? gradient.y : 0.0f);
 	normal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f || primary_hit.z <= prim_box_pos.z - 0.5f) ? gradient.z : 0.0f);
 
-	//ligting data output
-	
-	
+	//ligting data output	
 	light.w = pixel_color.w;
 	//low
 	outColor[1].xyz = light.xyz;
