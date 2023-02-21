@@ -193,6 +193,12 @@ kbd {
         width: 98%;
     }
 
+nav button {
+    font-family: Impact;
+    color: rgb(40,40,40);
+    font-size: 1.2em;
+}
+
 .tab button {
     background-color: gray;
     float: left;
