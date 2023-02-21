@@ -335,6 +335,29 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     console.log("Took " + (Date.now() - timer_start) + "ms");
 }
 
+class UniformBuffer {
+    constructor(gl, dataSize, boundLocation = 0) {
+        this.boundLocation = boundLocation;
+
+        this.data = new Float32Array(dataSize);
+
+        this.buffer = gl.createBuffer();
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
+        gl.bufferData(gl.UNIFORM_BUFFER, this.data, gl.DYNAMIC_DRAW);
+        gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+        gl.bindBufferBase(gl.UNIFORM_BUFFER, this.boundLocation, this.buffer);
+    }
+
+    update(gl, data, offset = 0) {
+        this.data.set(data, offset);
+
+        gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
+        gl.bufferSubData(gl.UNIFORM_BUFFER, 0, this.data, 0, null);
+        gl.bindBuffer(gl.UNIFORM_BUFFER, null);
+        gl.bindBufferBase(gl.UNIFORM_BUFFER, this.boundLocation, this.buffer);
+    }
+};
+
 function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     for (let x = 0; x < 3; x++) {
         for (let z = 0; z < 3; z++) {
@@ -359,7 +382,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     }
 
     //lighting data from previous frame
-    var textureLoc0 = gl.getUniformLocation(shaderProgram, "noise");
+    var textureLoc0 = gl.getUniformLocation(shaderProgram, "light_high");
     //pixels.length - texture unit number
     gl.uniform1i(textureLoc0, pixels.length);
     gl.activeTexture(gl.TEXTURE0 + pixels.length);
@@ -492,6 +515,11 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
         gl.COLOR_ATTACHMENT2
     ]);
 
+    //scene buffer
+    const sceneBuffer = new UniformBuffer(gl, 4 * 13, 0);
+    const block = gl.getUniformBlockIndex(shaderProgram, "Scene");
+    console.log(block);
+    gl.uniformBlockBinding(shaderProgram, block, sceneBuffer.boundLocation);
 
     //----shader program for post-processing----//
     const canvasShaderProgram = initShaderProgram(gl, vsSource, pp_fragment);
@@ -554,7 +582,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
 
     //start render loop
     window.requestAnimationFrame(function (timestamp) {
-        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, 0.0);
+        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, 0.0, sceneBuffer);
     });
 }
 
@@ -654,23 +682,23 @@ function resizeBuffers(canvas) {
     }
 }*/
 
-function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, time) {
+function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, time, sceneBuffer) {
     updateCamera(gl);
     //resizeBuffers(canvas);
     const scene = [
-        (pos[0] + 1.5 * size) * subSize, (pos[1]) * subSize, (pos[2] + 1.5 * size) * subSize,
-        rotation[0], rotation[1], animationTime,
-        40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],
-        canvas.width, canvas.height, frame,
-        1.2, 0.01, 100000.0, //projection (fov near far)
-        (prev_position[0] + 1.5 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + 1.5 * size) * subSize,
-        prev_rotation[0], prev_rotation[1], prev_rotation[2],
-        sceneConfig.skyColorUP[0], sceneConfig.skyColorUP[1], sceneConfig.skyColorUP[2],
-        sceneConfig.skyColorDown[0], sceneConfig.skyColorDown[1], sceneConfig.skyColorDown[2],
-        sceneConfig.skyLight[0], sceneConfig.skyLight[1], sceneConfig.skyLight[2],
-        sceneConfig.sunColor[0], sceneConfig.sunColor[1], sceneConfig.sunColor[2],
-        sceneConfig.sunDirection[0], sceneConfig.sunDirection[1], sceneConfig.sunDirection[2],
-        sceneConfig.sunSize, sceneConfig.sunDiscSharpness, sceneConfig.sunShadowSharpness
+        (pos[0] + 1.5 * size) * subSize, (pos[1]) * subSize, (pos[2] + 1.5 * size) * subSize,0,
+        rotation[0], rotation[1], animationTime,0,
+        40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],0,
+        canvas.width, canvas.height, frame,0,
+        1.2, 0.01, 100000.0, 0,//projection (fov near far)
+        (prev_position[0] + 1.5 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + 1.5 * size) * subSize,0,
+        prev_rotation[0], prev_rotation[1], prev_rotation[2],0,
+        sceneConfig.skyColorUP[0], sceneConfig.skyColorUP[1], sceneConfig.skyColorUP[2],0,
+        sceneConfig.skyColorDown[0], sceneConfig.skyColorDown[1], sceneConfig.skyColorDown[2],0,
+        sceneConfig.skyLight[0], sceneConfig.skyLight[1], sceneConfig.skyLight[2],0,
+        sceneConfig.sunColor[0], sceneConfig.sunColor[1], sceneConfig.sunColor[2],0,
+        sceneConfig.sunDirection[0], sceneConfig.sunDirection[1], sceneConfig.sunDirection[2],0,
+        sceneConfig.sunSize, sceneConfig.sunDiscSharpness, sceneConfig.sunShadowSharpness,0
     ];
     frame += 0.5;
     if (frame >= 0xffffff) frame = 0.0;
@@ -680,8 +708,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     gl.useProgram(shaderProgram);
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
 
-    var location = gl.getUniformLocation(shaderProgram, 'scene_data');
-    gl.uniform3fv(location, scene);
+    sceneBuffer.update(gl, scene);
 
     for (let x = 0; x < 3; x++) {
         for (let z = 0; z < 3; z++) {
@@ -914,7 +941,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
             fps_time += deltaTime;
 
         wait++;
-        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, timestamp);
+        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, timestamp, sceneBuffer);
     });
 }
 

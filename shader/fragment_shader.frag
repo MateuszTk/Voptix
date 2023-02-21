@@ -18,13 +18,32 @@ const float chunk_size = 128.0f * 8.0f;
 
 const int chunk_count = 9;
 
+struct Ray {
+	vec3 orig;
+	vec3 dir;
+};
+
 out vec4[3] outColor;
 uniform sampler3D u_textures[chunk_count];
 uniform sampler3D u_palette;
-uniform sampler2D noise;
+uniform sampler2D light_high;
 uniform sampler2D light_low;
-uniform vec3[13] scene_data;
 uniform ivec3[3] chunk_map;
+uniform Scene{
+	vec4 camera_origin;
+	vec4 camera_direction;
+	vec4 chunk_offset;
+	vec4 screen;
+	vec4 projection;
+	vec4 prev_pos;
+	vec4 prev_rot;
+	vec4 skyColorUp;
+	vec4 skyColorDown;
+	vec4 skyLight;
+	vec4 sunColor;
+	vec4 sunDirection;
+	vec4 sunParam;
+} scene;
 
 int debug_cnt = 0;
 float animationTime = 0.0f;
@@ -135,27 +154,6 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element, float voxelS
 	return fvoxel;
 }
 
-struct Ray {
-	vec3 orig;
-	vec3 dir;
-};
-
-struct Scene {
-	vec3 camera_origin;
-	vec3 camera_direction;
-	vec3 chunk_offset;
-	vec3 screen;
-	vec3 projection;
-	vec3 prev_pos;
-	vec3 prev_rot;
-	vec3 skyColorUp;
-	vec3 skyColorDown;
-	vec3 skyLight;
-	vec3 sunColor;
-	vec3 sunDirection;
-	vec3 sunParam;
-};
-
 void load_direction(inout vec3 vec, vec3 rotation) {
 	float rotated;
 
@@ -181,7 +179,7 @@ void load_ray(inout Ray ray, vec3 direction, vec3 origin) {
 }
 
 // initialize ray object
-void load_primary_ray(inout Ray ray, Scene scene, vec2 pos, const float width, const float height, float fov) {
+void load_primary_ray(inout Ray ray, vec2 pos, const float width, const float height, float fov) {
 	float aspect_ratio = width / height;
 
 	vec3 dir;
@@ -197,7 +195,7 @@ void load_primary_ray(inout Ray ray, Scene scene, vec2 pos, const float width, c
 
 	load_direction(dir, rotation);
 
-	load_ray(ray, dir, scene.camera_origin);
+	load_ray(ray, dir, scene.camera_origin.xyz);
 }
 
 void Bounce(inout Ray ray, vec3 hit, vec3 box_pos, float size) {
@@ -304,29 +302,15 @@ bool occlusion(vec3 delta_pos, vec3 box_pos, int scx, int scz) {
 	return (getVoxel(test, 0.0f, mask, 0.0f, 1.0f).w > 0.0f);
 }
 
-vec3 getBackgroundColor(vec3 skyColorDown, vec3 skyColorUp, Ray ray, vec3 sunRayDir, vec3 sunColor, vec3 sunParam){
+vec3 getBackgroundColor(Ray ray, vec3 sunRayDir){
 	float dist =  distance(ray.dir, sunRayDir);
-	vec3 sky = mix(skyColorDown, skyColorUp, ray.dir.y * 0.5f);
-	return mix(sunColor * 1.5f, sky, clamp(log(dist * sunParam.y) * sunParam.x, 0.0f, 1.0f));
+	vec3 sky = mix(scene.skyColorDown.xyz, scene.skyColorUp.xyz, ray.dir.y * 0.5f);
+	return mix(scene.sunColor.xyz * 1.5f, sky, clamp(log(dist * scene.sunParam.y) * scene.sunParam.x, 0.0f, 1.0f));
 }
 
 void main() {
 
-	Scene scene = Scene(
-		scene_data[0],
-		scene_data[1],
-		scene_data[2],
-		scene_data[3],
-		scene_data[4],
-		scene_data[5],
-		scene_data[6],
-		scene_data[7],
-		scene_data[8],
-		scene_data[9],
-		scene_data[10],
-		scene_data[11],
-		scene_data[12]
-	);
+	//Scene scene = scene_data;
 
 	vec2 pos = vec2(gl_FragCoord.x, gl_FragCoord.y);
 	//normalized pixel coordinates
@@ -340,18 +324,18 @@ void main() {
 	const float ray_retreat = 0.01f;
 
 	Ray ray;
-	load_primary_ray(ray, scene, pos, scene.screen.x, scene.screen.y, fov);
+	load_primary_ray(ray, pos, scene.screen.x, scene.screen.y, fov);
 	Ray primary_ray = ray;
 
 	vec4 prevmat = vec4(0, 0, 0, 0);
 	int gi_samples = 2;
-	vec3 illumination =	scene.sunColor * float(gi_samples);
+	vec3 illumination =	scene.sunColor.xyz * float(gi_samples);
 	vec3 prim_box_pos = vec3(0.0f);
 	vec4 prim_mat = vec4(0.0f);
 
 	// set background color
-	scene.sunDirection = normalize(scene.sunDirection);
-	vec3 backgroundColor = getBackgroundColor(scene.skyColorDown, scene.skyColorUp, ray, scene.sunDirection, scene.sunColor, scene.sunParam);
+	vec3 sunDirection = normalize(scene.sunDirection.xyz);
+	vec3 backgroundColor = getBackgroundColor(ray, sunDirection);
 	vec4 pixel_color = vec4(backgroundColor, far);
 	vec3 primary_hit = vec3(0.0f);
 	int deb_cnt_loc = 0;
@@ -416,7 +400,7 @@ void main() {
 					illumination += vec3(tmpmat.y) * color.xyz * 12.0f;
 				else
 					//add sky light
-					illumination += scene.skyLight;
+					illumination += scene.skyLight.xyz;
 			}
 			if (color.w >= far && spp == 0) {
 				break;
@@ -443,7 +427,7 @@ void main() {
 					vec3 jitter = hash3(seed) * 2.0f - 1.0f;
 					jitter *= scene.sunParam.z; 
 					//shadow ray
-					dir = scene.sunDirection + jitter;
+					dir = sunDirection + jitter;
 				}
 				else {
 					//GI ray
@@ -466,7 +450,7 @@ void main() {
 		}
 
 		if (ray_pixel_color.w >= far) {
-			backgroundColor = getBackgroundColor(scene.skyColorDown, scene.skyColorUp, ray, scene.sunDirection, scene.sunColor, scene.sunParam);
+			backgroundColor = getBackgroundColor(ray, sunDirection);
 			ray_pixel_color.xyz = backgroundColor;
 		}
 
@@ -574,7 +558,7 @@ void main() {
 	pixel_color.w = clamp(w / 255.0f * 2.0f, 0.0f, 255.0f);
 
 	//restore lighting from previous frame
-	vec3 direction = primary_hit - scene.prev_pos;
+	vec3 direction = primary_hit - scene.prev_pos.xyz;
 	vec3 ray_dir = normalize(direction);
 
 	vec3 rotation = vec3(
@@ -603,7 +587,7 @@ void main() {
 	vec4 light = vec4(0.0f);
 	illumination /= float(gi_samples);
 	if (pixel.x > 0.0f && pixel.y > 0.0f && pixel.y < 1.0f && pixel.x < 1.0) {
-		if (distance(scene.prev_pos + ray_dir * ((texture(noise, pixel).w * 256.0f + texture(light_low, pixel).w) * 255.0f / 2.0f), primary_hit) < 0.5f) {
+		if (distance(scene.prev_pos.xyz + ray_dir * ((texture(light_high, pixel).w * 256.0f + texture(light_low, pixel).w) * 255.0f / 2.0f), primary_hit) < 0.5f) {
 			acc_ill = texture(light_low, pixel);
 			light = floor((acc_ill * 20.0f + vec4(illumination.x, illumination.y, illumination.z, 0.0f)) / 21.0f * 255.0f) / 255.0f;
 		}
