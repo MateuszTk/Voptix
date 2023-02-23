@@ -1,342 +1,195 @@
 <!DOCTYPE html>
 
 <html>
-
 <head>
-    <script type="text/javascript" src="gl-matrix.js"></script>
-    <script type="text/javascript" src="perlin.js"></script>
-    <script type="text/javascript" src="renderer.js"></script>
-    <link rel="stylesheet" href="style.css">
-    <title>Voptix</title>
+	<script src="/script/gl-matrix.js"></script>
+	<script src="/script/perlin.js"></script>
+	<script src="/script/helper.js"></script>
+	<script src="/script/octree.js"></script>
+	<script src="/script/worldgen.js"></script>
+	<script src="/script/control.js"></script>
+	<script src="/script/ui.js" defer></script>
+	<script src="/script/renderer.js"></script>
+
+	<link rel="stylesheet" href="/styles/style.css">
+	<title>Voptix</title>
+	<link rel="icon" type="image/x-icon" href="/images/favicon.png">
 </head>
-
 <body>
-    <p id="fps_counter">FPS:</p>
-    <div id="canvas_container">
-        <canvas id="glCanvas" width="800" height="600"></canvas>
-        <div class="crosshair"></div>
-
-        <!--by MaciekTk88-->
-        <div id="polowaprzewijana">
-            <div class="Wrapper">
-                <div class="pole1">
-                    <div class=" edytor">VOXEL</div>
-
-                    <div class="suwaki">
-                        <div class="slidecontainer"></div>
-                        <font style="font-size: 30px; color: red; font-family: Impact">R.</font>
-                        <input type="range" min="0" max="255" value="255" id="RRange">
-                        <span style="font-size: 30px; color: red; font-family: Impact" id="Rtext"></span>
-
-                        <br>
-
-                        <font style="font-size: 30px; color: green; font-family: Impact">G.</font>
-                        <input type="range" min="0" max="255" value="255" id="GRange">
-                        <span style="font-size: 30px; color: green; font-family: Impact" id="Gtext"></span>
-
-
-                        <br>
-
-                        <font style="font-size: 30px; color: blue; font-family: Impact">B.</font>
-                        <input type="range" min="0" max="255" value="255" id="BRange">
-                        <span style="font-size: 30px; color: blue; font-family: Impact" id="Btext"></span>
-
-                        <br>
-
-                        <font style="font-size: 30px; color: white; font-family: Impact">C.</font>
-                        <input type="range" min="0" max="255" value="255" id="ARange">
-                        <span style="font-size: 30px; color: white; font-family: Impact" id="Atext"></span>
-
-                        <br>
-
-                        <font style="font-size: 30px; color: white; font-family: Impact">E.&nbsp;</font>
-                        <input type="range" min="0" max="255" value="255" id="ERange">
-                        <span style="font-size: 30px; color: white; font-family: Impact" id="Etext"></span>
-                    </div>
-
-                    <div id="suwaki">
-                        <div class="zdiencie">
-                            <div id="square">
-                                <div id="gora">
-
-                                    <img src="gora.jpg" width="200" height="200">
-
-                                    <script>
-                                        function updateSliders() {
-                                            r = brush.color_r;
-                                            g = brush.color_g;
-                                            b = brush.color_b;
-
-                                            sliderR.value = r;
-                                            sliderG.value = g;
-                                            sliderB.value = b;
-
-                                            outputR.innerHTML = r;
-                                            outputG.innerHTML = g;
-                                            outputB.innerHTML = b;
-
-                                            square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
-                                        }
-
-                                        var r = 255, g = 255, b = 255, c = 0, e = 0;
-                                        var square = document.getElementById("square");
-                                        var gora = document.getElementById("gora");
-
-                                        var sliderR = document.getElementById("RRange");
-                                        var outputR = document.getElementById("Rtext");
-                                        outputR.innerHTML = sliderR.value; // Display the default slider value
-                                        sliderR.oninput = function () {
-                                            outputR.innerHTML = sliderR.value;
-                                            r = sliderR.value;
-                                            square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
-                                            brush.color_r = r;
-                                            brush.color_g = g;
-                                            brush.color_b = b;
-                                            brush.clarity = c;
-                                            brush.emission = e;
-                                        }
-
-                                        var sliderG = document.getElementById("GRange");
-                                        var outputG = document.getElementById("Gtext");
-                                        outputG.innerHTML = sliderG.value; // Display the default slider value
-                                        sliderG.oninput = function () {
-                                            outputG.innerHTML = sliderG.value;
-                                            g = sliderG.value;
-                                            square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
-                                            brush.color_r = r;
-                                            brush.color_g = g;
-                                            brush.color_b = b;
-                                            brush.clarity = c;
-                                            brush.emission = e;
-                                        }
-
-                                        var sliderB = document.getElementById("BRange");
-                                        var outputB = document.getElementById("Btext");
-                                        outputB.innerHTML = sliderB.value; // Display the default slider value
-                                        sliderB.oninput = function () {
-                                            outputB.innerHTML = sliderB.value;
-                                            b = sliderB.value;
-                                            square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
-                                            brush.color_r = r;
-                                            brush.color_g = g;
-                                            brush.color_b = b;
-                                            brush.clarity = c;
-                                            brush.emission = e;
-                                        }
-
-                                        var sliderA = document.getElementById("ARange");
-                                        var outputA = document.getElementById("Atext");
-                                        outputA.innerHTML = sliderA.value; // Display the default slider value
-                                        sliderA.oninput = function () {
-                                            outputA.innerHTML = sliderA.value;
-                                            c = sliderA.value;
-                                            gora.style.opacity = c / 255;
-                                            brush.color_r = r;
-                                            brush.color_g = g;
-                                            brush.color_b = b;
-                                            brush.clarity = c;
-                                            brush.emission = e;
-                                        }
-
-                                        var sliderE = document.getElementById("ERange");
-                                        var outputE = document.getElementById("Etext");
-                                        outputE.innerHTML = sliderE.value; // Display the default slider value
-                                        sliderE.oninput = function () {
-                                            outputE.innerHTML = sliderE.value;
-                                            e = sliderE.value;
-                                            brush.color_r = r;
-                                            brush.color_g = g;
-                                            brush.color_b = b;
-                                            brush.clarity = c;
-                                            brush.emission = e;
-                                        }
-
-                                        sliderR.value = r;
-                                        sliderG.value = g;
-                                        sliderB.value = b;
-                                        sliderA.value = c;
-                                        sliderE.value = e;
-
-                                        outputR.innerHTML = r;
-                                        outputG.innerHTML = g;
-                                        outputB.innerHTML = b;
-                                        outputA.innerHTML = c;
-                                        outputE.innerHTML = e;
-
-                                        gora.style.opacity = c / 255;
-                                        square.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");
-                                        brush.color_r = r;
-                                        brush.color_g = g;
-                                        brush.color_b = b;
-                                        brush.clarity = c;
-                                        brush.emission = e;
-                                    </script>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-
-                <div class="pole2">
-                    <div class="edytor">BRUSH</div>
-                    <div class="suwaki2">
-
-                        <font style="font-size: 30px; color: white; font-family: Impact">Size</font>
-                        <input type="range" min="1" max="40" value="1" class="slider5" id="BsRange">
-                        <span style="font-size: 30px; color: white; font-family: Impact" id="demo4"></span>
-
-                        <font style="font-size: 30px; color: white; font-family: Impact; position:absolute; top: 50px; left: 0px">SQUARE BRUSH</font>
-                        <input type="checkbox" id="kwadratowypedzelid" name="kwadratowypedzel">
-
-
-                    </div>
-
-                    <div id="circle"></div>
-
-                    <script>
-                        var bs = 1;
-                        var circle = document.getElementById("circle");
-                        var zaznaczenie = document.getElementById('kwadratowypedzelid');
-
-
-                        var slider4 = document.getElementById("BsRange");
-                        var output4 = document.getElementById("demo4");
-                        output4.innerHTML = slider4.value; // Display the default slider value
-                        slider4.oninput = function () {
-                            output4.innerHTML = slider4.value;
-                            bs = slider4.value;
-                            circle.style.height = (bs * 2).toString() + "px";
-                            circle.style.width = (bs * 2).toString() + "px";
-                            var x = 443;
-                            var y = 145;
-
-                            circle.style.left = (x - bs * 2 / 2).toString() + "px";
-                            circle.style.top = (y - bs * 1).toString() + "px";
-                            brush.diameter = bs;
-                        }
-                        zaznaczenie.checked = false;
-                        brush.type = zaznaczenie.checked;
-                        zaznaczenie.addEventListener('change', () => {
-                            if (zaznaczenie.checked) {
-                                circle.style.borderRadius = (0).toString() + "%";
-                                console.log("z");
-                            }
-                            else {
-                                circle.style.borderRadius = (50).toString() + "%";
-                            }
-                            brush.type = zaznaczenie.checked;
-                        });
-
-                        slider4.value = bs;
-
-                        circle.style.height = (bs * 2).toString() + "px";
-                        circle.style.width = (bs * 2).toString() + "px";
-                        var x = 443;
-                        var y = 145;
-
-                        circle.style.left = (x - bs * 2 / 2).toString() + "px";
-                        circle.style.top = (y - bs * 1).toString() + "px";
-                        brush.diameter = bs;
-                        output4.innerHTML = bs;
-
-                    </script>
-
-                </div>
-
-                <div class="pole3">
-                    <div class="edytor">WORLD</div>
-                    <button type="button" id="save" onclick="save('save')">Save world</button>
-                    <button type="button" id="open" onclick="loadFile()">Open world</button>
-                    <div class="malyedytor">SEED</div>
-                    <div id="seedp"><input type="text" name="seed" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');"></div>
-                    <button type="button" id="applyseed" onclick="">Apply</button>
-                </div>
-
-
-                <!--
-    <div class="pole4">
-        <div class="edytordlugi">GRAPHIC SETTINGS</div>
-        <select name="rozmiar" id="rozmiar" multiple>
-            <option value="1">640 x 360</option>
-            <option value="2">800 x 600</option>
-            <option value="3">1024 x 768</option>
-            <option value="4">1280 x 720</option>
-            <option value="5">1440 x 900</option>
-            <option value="6">1920 x 1080</option>
-            <option value="7">2560 x 1440</option>
-
-        </select>
-        <input type="submit" value="Submit">
-    </div>
-        -->
-
-                <div class="pole5">
-                    <div class="edytordlugi">CONTROL SETTINGS</div>
-                    <div class="suwaki3">
-
-                        <font style="font-size: 30px; color: white; font-family: Impact">MOUSE SENSITIVITY</font>
-                        <input type="range" min="1" max="100" value="50" class="slider5" id="MSRange">
-                        <span style="font-size: 30px; color: white; font-family: Impact" id="demo5"></span>
-                        <br>
-
-                        <font style="font-size: 30px; color: white; font-family: Impact">FLYING SPEED</font>
-                        <input type="range" min="1" max="100" value="50" class="slider5" id="FSRange" style="position:absolute; left: 235px; top: 42px" ;>
-                        <span style="font-size: 30px; color: white; font-family: Impact; position:absolute; left: 424px; top: 42px" ;" id="demo6"></span>
-
-                    </div>
-
-                    <div class="malyedytor" style="position:absolute; left: 240px; top: 220px">
-                        CONTROLS
-                    </div>
-
-                    
-
-                    <div class="tabelas">
-                        Place voxel &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; LMB
-                        <br>
-                        Remove voxel &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; RMB
-                        <br>
-                        Sample color &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; MMB
-                        <br>
-                        Show pointer &emsp; &emsp; &emsp; &emsp; &emsp; &ensp; Enter/Esc
-                        <br>
-                        Move &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; &emsp; &ensp; W/A/S/D/Q/E
-                    </div>
-
-                    <script>
-
-                        var ms = 50;
-                        var fs = 50;
-
-                        var slider5 = document.getElementById("MSRange");
-                        var output5 = document.getElementById("demo5");
-                        output5.innerHTML = slider5.value; // Display the default slider value
-                        slider5.oninput = function () {
-                            output5.innerHTML = slider5.value;
-                            ms = slider5.value;
-                            sensivity = ms / 100;
-                        }
-                        slider5.value = ms;
-                        output5.innerHTML = ms;
-                        sensivity = ms / 100;
-
-                        var slider6 = document.getElementById("FSRange");
-                        var output6 = document.getElementById("demo6");
-                        output6.innerHTML = slider6.value; // Display the default slider value
-                        slider6.oninput = function () {
-                            output6.innerHTML = slider6.value;
-                            fs = slider6.value;
-                            speed = fs / 50;
-                        }
-                        slider6.value = fs;
-                        output6.innerHTML = fs;
-                        speed = fs / 50;
-
-                    </script>
-
-                </div>
-            </div>
-    </div>
+	<div id="canvas_container">
+		<canvas id="glCanvas" width="1280" height="720" style="width: 100%; height: 100%;"></canvas>
+		<div class="crosshair"></div>
+	</div>
+	<p id="fps_counter">FPS</p>
+	<button class="prompt" style="left: 2px; bottom: 2px;" onclick="precisionButton()">
+		<p style="margin: 4px;"><kbd>P</kbd> <span id="precision">Precision mode</span></p>
+	</button>
+	<div id="right-toolbar-container">
+		<div id="right-toolbar-editor">
+			<div id="wrapper">
+				<nav class="tab">
+					<button id="worldTabLink" onclick="openTab(0)">World</button>
+					<button id="blockTabLink" onclick="openTab(1)">Block</button>
+				</nav>
+				<div id="blockTab">
+					<section>
+						<h1>VOXEL</h1>
+						<div style="float: left;">
+							<div class="slider" style="color: red;">
+								<label for="RRange">R.</label>
+								<input type="range" min="0" max="255" value="255" style="background-color: red;" id="RRange">
+								<span id="Rtext"></span><br>
+							</div>
+							<div class="slider" style="color: green;">
+								<label for="GRange">G.</label>
+								<input type="range" min="0" max="255" value="255" style="background-color: green;" id="GRange">
+								<span id="Gtext"></span><br>
+							</div>
+							<div class="slider" style="color: blue;">
+								<label for="BRange">B.</label>
+								<input type="range" min="0" max="255" value="255" style="background-color: blue;" id="BRange">
+								<span id="Btext"></span><br>
+							</div>
+							<div class="slider" style="color: white;">
+								<label for="ARange">C.</label>
+								<input type="range" min="0" max="255" value="255" id="ARange">
+								<span id="Atext"></span><br>
+							</div>
+							<div class="slider" style="color: white;">
+								<label for="ERange">E.&nbsp;</label>
+								<input type="range" min="0" max="255" value="255" id="ERange">
+								<span id="Etext"></span><br>
+							</div>
+							<div class="slider" style="color: white;">
+								<label for="RoRange">R.&nbsp;</label>
+								<input type="range" min="0" max="255" value="0" id="RoRange">
+								<span id="Rotext"></span><br>
+							</div>
+							<button type="button" class="button" onclick="addToPalette(brush.color_r, brush.color_g, brush.color_b, brush.clarity, brush.emission, brush.roughness, brush.palette_id);">Fill</button>
+						</div>
+						<div id="previewMask" style="float: right;">
+							<img src="/images/gora.jpg" width="200" height="200" id="matPreview">
+						</div>
+					</section>
+				</div>
+				<div id="worldTab">
+					<section>
+						<h1>BRUSH</h1>
+						<div style="float: left;">
+							<div class="slider" style="color: white;">
+								<label for="PRange">Voxel</label>
+								<input type="range" min="0" max="64" value="0" id="PRange">
+								<span id="Ptext"></span><br>
+							</div>
+							<div class="slider" style="color: white;">
+								<label for="VRange">Variant</label>
+								<input type="range" min="0" max="8" value="0" id="VRange">
+								<span id="Vtext"></span><br>
+							</div>
+							<div class="slider" style="color: white;">
+								<label for="BsRange">Size</label>
+								<input type="range" min="1" max="40" value="1" id="BsRange">
+								<span id="demo4"></span><br>
+							</div>
+							<label for="kwadratowypedzelid" style="font-size: 30px; color: white; font-family: Impact;">SQUARE BRUSH</label>
+							<input type="checkbox" id="kwadratowypedzelid" name="kwadratowypedzel">
+						</div>
+						<div id="brushPreview">
+							<div id="circle"></div>
+						</div>
+					</section>
+				</div>
+				<section>
+					<h1>WORLD</h1>
+					<div style="position: relative; display: flex;">
+						<button type="button" class="button" onclick="save_palette('save')">Save palette</button>
+						<button type="button" class="button" onclick="save('save')">Save world</button>
+						<button type="button" class="button" onclick="loadFile()">Open</button>
+						<!--<div class="malyedytor">SEED</div>
+						<div id="seedp"><input type="text" name="seed" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');"></div>
+						<button type="button" id="applyseed" onclick="">Apply</button>-->
+					</div>
+				</section>
+				<section>
+					<h1>CONTROL SETTINGS</h1>
+					<div>
+						<div class="slider">
+							<label for="MSRange">MOUSE SENSITIVITY</label>
+							<input type="range" min="1" max="100" value="50" id="MSRange">
+							<span id="demo5"></span><br>
+						</div>
+						<div class="slider">
+							<label for="FSRange">FLYING SPEED</label>
+							<input type="range" min="1" max="100" value="50" id="FSRange">
+							<span id="demo6"></span><br>
+						</div>
+					</div>
+					<h2>KEY BINDINGS</h2>
+					<div>
+						<table>
+							<tr>
+								<td>Place voxel</td>
+								<td>LMB</td>
+							</tr>
+							<tr>
+								<td>Remove voxel</td>
+								<td>RMB</td>
+							</tr>
+							<tr>
+								<td>Pick voxel</td>
+								<td>MMB</td>
+							</tr>
+							<tr>
+								<td>Show pointer</td>
+								<td><kbd>F</kbd>/<kbd>Esc</kbd></td>
+							</tr>
+							<tr>
+								<td>Hide pointer</td>
+								<td><kbd>F</kbd></td>
+							</tr>
+							<tr>
+								<td>Move</td>
+								<td><kbd>W</kbd>/<kbd>A</kbd>/<kbd>S</kbd>/<kbd>D</kbd>/<kbd>Q</kbd>/<kbd>E</kbd></td>
+							</tr>
+							<tr>
+								<td>Browse voxels</td>
+								<td><kbd>&uarr;</kbd>/<kbd>&darr;</kbd>/Scroll wheel</td>
+							</tr>
+							<tr>
+								<td>Browse voxel variants</td>
+								<td><kbd>Shift</kbd> + <kbd>&larr;</kbd>/<kbd>&rarr;</kbd>/Scroll wheel</td>
+							</tr>
+							<tr>
+								<td>Toggle editing precision</td>
+								<td><kbd>P</kbd></td>
+							</tr>
+						</table>
+					</div>
+				</section>
+				<section>
+					<h1>GRAPHICS</h1>
+					<select id="resolutionSelect" onchange="scaleUpdate(100)">
+						<option value="640x360">640 x 360 (16:9)</option>
+						<option value="800x600">800 x 600 (4:3)</option>
+						<option value="1024x768">1024 x 768	(4:3)</option>
+						<option value="1280x720">1280 x 720 (16:9)</option>
+						<option value="1440x900">1440 x 900 (16:10)</option>
+						<option value="1920x1080">1920 x 1080 (16:9)</option>
+						<option value="1920x1200">1920 x 1200 (16:10)</option>
+						<option value="2560x1440">2560 x 1440 (16:9)</option>
+						<option value="3840x2160">3840 x 2160 (16:9)</option>
+					</select>
+					<div class="slider">
+						<input type="range" min="1" max="200" value="100" id="resScale" oninput="scaleUpdate()">
+						<span id="resScaleText"></span><br>
+						<span id="resText"></span><br>
+					</div>
+					<button onclick="resize()">Save</button>
+					<p>Refresh this page to apply the changes</p>
+				</section>
+			</div>
+		</div>
+		<div id="right-toolbar-blockPicker"></div>
+	</div>
 </body>
 </html>
