@@ -4,7 +4,7 @@ function main() {
     const canvas = document.querySelector("#glCanvas");
     canvas.onmousedown = handleCanvasClick;
 
-    var [sw, sh] = readResolution();
+    var [sw, sh] = readResolution(canvas);
     if (sw && sh) {
         canvas.width = sw;
         canvas.height = sh;
@@ -76,23 +76,28 @@ var deltaTime = 0;
 
 window.onload = main;
 
-function readResolution() {
+function readResolution(canvas) {
     let sw = localStorage.getItem("swidth");
     let sh = localStorage.getItem("sheight");
 
-    if (sw && sh) {
-        const resolution = sw.toString() + "x" + sh.toString();
-        if (document.querySelector("#resolutionSelect option[value='" + resolution + "']"))
-            document.getElementById("resolutionSelect").value = resolution;
-        else {
-            let option = document.createElement("option");
-            option.value = resolution;
-            option.innerText = resolution;
-            document.getElementById("resolutionSelect").appendChild(option);
-            document.getElementById("resolutionSelect").value = resolution;
-        }
-        scaleUpdate(100);
+    if (!sw || !sh) {
+        sw = canvas.width;
+        sh = canvas.height;
+        localStorage.setItem("swidth", canvas.width);
+        localStorage.setItem("sheight", canvas.height);
     }
+
+    const resolution = sw.toString() + "x" + sh.toString();
+    if (document.querySelector("#resolutionSelect option[value='" + resolution + "']"))
+        document.getElementById("resolutionSelect").value = resolution;
+    else {
+        let option = document.createElement("option");
+        option.value = resolution;
+        option.innerText = resolution;
+        document.getElementById("resolutionSelect").appendChild(option);
+        document.getElementById("resolutionSelect").value = resolution;
+    }
+    scaleUpdate(100);
     return [sw, sh];
 }
 

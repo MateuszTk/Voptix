@@ -16,7 +16,6 @@ precision highp sampler3D;
 //#define DEBUG
 
 const float chunk_size = 128.0f * 8.0f;
-
 const int chunk_count = 9;
 
 struct Ray {
@@ -135,11 +134,11 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element, float voxelS
 	if (olevel < 3.0f) {
 		if (fvoxel.w > 0.0f) {
 			//256 blocks in palette; 2 pixels per voxel; 8 variants
-			ofpos = fract(ofpos / vec3(8.0f, 8.0f, 8.0f)) / vec3(256.0f, 2.0f, 8.0f);
+			ofpos = fract(ofpos / vec3(8.0f)) / vec3(256.0f, 2.0f, 8.0f);
 			ofpos.x += fvoxel.x * (255.0f / 256.0f);
 			ofpos.y += element * 0.5f;
 			if(fvoxel.z < (8.0f / 256.0f))
-				ofpos.z += fvoxel.z * 32.0f * (255.0f / 256.0f);
+				ofpos.z += fvoxel.z * (32.0f * 255.0f / 256.0f);
 			else
 				ofpos.z += animationTime;
 
@@ -210,7 +209,7 @@ void Bounce(inout Ray ray, vec3 hit, vec3 box_pos, float size) {
 }
 
 // draw single pixel queried from octree with a 3D ray
-void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout vec4 matoutput, inout vec3 box_pos) {
+bool octree_get_pixel(Ray ray, float max_dist, inout vec4 voutput, inout vec4 matoutput, inout vec3 box_pos) {
 
 	vec3 ndir = ray.dir;
 
@@ -228,9 +227,7 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 	float cellSize = 1.0f;
 
 	bvec3 comp = lessThan(ndir, vec3(0.0f));
-	vec3 rayLength1D = mix(floor(ray.orig) + cellSize - ray.orig, ray.orig - floor(ray.orig), comp) * unitStepSize;
-	vec3 nextrayLength1D = vec3(0.0f);	
-	vec3 pos_floor;
+	vec3 rayLength1D = mix(floor(ray.orig) + cellSize - ray.orig, ray.orig - floor(ray.orig), comp) * unitStepSize;	
 	float dist = 0.0f;
 	bool vHit = false;
 	float layer = minLayer;
@@ -252,7 +249,7 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 				else {
 					//something may be nearby - increase accuracy
 					layer -= 1.0f;
-					cellSize /= 2.0f;
+					cellSize *= 0.5f;
 				}	
 				move = false;
 			}
@@ -266,8 +263,8 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 			break;
 		}
 		if (move) {
-			pos_floor = floor(testPos / cellSize) * cellSize;
-			nextrayLength1D = mix(pos_floor + cellSize - testPos, testPos - pos_floor, comp) * unitStepSize;
+			vec3 pos_floor = floor(testPos / cellSize) * cellSize;
+			vec3 nextrayLength1D = mix(pos_floor + cellSize - testPos, testPos - pos_floor, comp) * unitStepSize;
 			dist += min(nextrayLength1D.x, min(nextrayLength1D.y, nextrayLength1D.z)) + 0.01f;
 
 			//position of curently tested voxel
@@ -287,16 +284,16 @@ void octree_get_pixel(Ray ray, inout float max_dist, inout vec4 voutput, inout v
 		vec4 vox_mat = getVoxel(testPos, minLayer, mask, 1.0f, 1.0f);
 
 		vec4 vox = getVoxel(testPos, minLayer, mask, 0.0f, 1.0f);
-		voutput.x = vox.x;
-		voutput.y = vox.y;
-		voutput.z = vox.z;
+		voutput.xyz = vox.xyz;
 		voutput.w = dist;
 
 		//clarity
 		matoutput = vox_mat;
 
 		box_pos = floor(testPos) + 0.5f;
+		return true;
 	}
+	return false;
 }
 
 //AO test
@@ -335,221 +332,170 @@ void main() {
 	const float ray_retreat = 0.01f;
 	const int gi_samples = 2;
 	
-	vec4 prevmat = vec4(0, 0, 0, 0);	
+	//new
+	float seed = centerPos.x + centerPos.y * 3.43121412313 + fract(1.12345314312 * scene.screen.z);
 	vec3 illumination =	scene.sunColor.xyz * float(gi_samples);
-	vec3 prim_box_pos = vec3(0.0f);
-	vec4 prim_mat = vec4(0.0f);
-
 	vec3 sunDirection = normalize(scene.sunDirection.xyz);
 	vec3 backgroundColor = getBackgroundColor(ray, sunDirection);
 	vec4 pixel_color = vec4(backgroundColor, far);
-	vec3 primary_hit = vec3(0.0f);
-	float seed = centerPos.x + centerPos.y * 3.43121412313 + fract(1.12345314312 * scene.screen.z);
+	
+	//primary ray
+	vec4 primMat = vec4(0.0f);
+	vec3 prim_box_pos = vec3(-1.0f);
+	bool hit = octree_get_pixel(ray, far, pixel_color, primMat, prim_box_pos);
+	vec3 primary_hit = ray.orig + ray.dir * (pixel_color.w - ray_retreat);
+	if (hit) {
+		if (primMat.y > 0.0f) { 
+			//if hit light source make sure the clamped multiplier is 1.0
+			illumination = vec3(64.0f);
+		}
 
-	for (int bounces = 0; bounces < 3; bounces++) {
-		vec4 ray_pixel_color = vec4(backgroundColor, far);
-		vec3 hit = vec3(0, 0, 0);
-		vec3 box_pos = vec3(0, 0, 0);
-		//material of voxel hit by the first ray (primary or reflection - not shadow)
-		vec4 vmat = vec4(0, 0, 0, 0);
+		//fake AO
+		const float size = 0.5f;
+		bool a = primary_hit.x >= prim_box_pos.x + size;
+		bool b = primary_hit.x <= prim_box_pos.x - size;
+		float shade = 0.0f;
+		if (a || b) {
+			int x = (a) ? 1 : -1;
 
-		int samples = (bounces == 0) ? 2 + gi_samples : 2;
-		for (int spp = 0; spp < samples; spp++) {
-
-			vec4 color = vec4(backgroundColor, far);
-			float max_dist = (spp < 2) ? (far) : (far / 8.0f);
-
-			float tmp_dist = 0.0f;
-
-			vec3 box_pos_t = vec3(-1, -1, -1);
-			vec4 tmpmat = vec4(0, 0, 0, 0);
-			octree_get_pixel(ray, max_dist, color, tmpmat, box_pos_t);
-				
-			if (spp == 0) {
-				if (box_pos_t.x != -1.0f) {
-					box_pos = box_pos_t;
-					vmat = tmpmat;
+			for (int y = -1; y < 2; y++) {
+				for (int z = -1; z < 2; z++) {
+					if (!(y == 0 && z == 0) && occlusion(vec3(x, y, z), prim_box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
+						float bl = 0.0f;
+						if (abs(z * y) > 0) {
+							bl = (1.0f - sqrt(pow(prim_box_pos.z + float(z) * 0.5f - primary_hit.z, 2.0f) + pow(prim_box_pos.y + float(y) * 0.5f - primary_hit.y, 2.0f)));
+						}
+						else {
+							bl = (((y == 0) ? 0.0f : abs(prim_box_pos.y - float(y) * 0.5f - primary_hit.y))
+								+ ((z == 0) ? 0.0f : abs(prim_box_pos.z - float(z) * 0.5f - primary_hit.z)));
+						}
+						shade = max(bl, shade);
+					}
 				}
-				ray_pixel_color = color;
-				if (bounces == 0) { 
-					prim_box_pos = box_pos;
-					prim_mat = tmpmat;
-#ifdef DEBUG
-					deb_cnt_loc = debug_cnt;
-#endif
-				}
-				else {
-					illumination += vec3(6.0f);
-				}
-				if (vmat.y > 0.0f) { 
-					//if hit light source make sure the clamped multiplier is 1.0
-					illumination = vec3(64.0f);
-				}
-				if (ray_pixel_color.w >= far) {
-					//if hit sky prevent it from being dimmed
-					illumination = vec3(64.0f);
-				}
-
 			}
-			else if (spp == 1) {
-				if (color.w < far) {
-					//if in shadow
-					illumination *= 0.1f;
+		}
+		else {
+			a = primary_hit.y >= prim_box_pos.y + size;
+			b = primary_hit.y <= prim_box_pos.y - size;
+			if (a || b) {
+				int y = (a) ? 1 : -1;
+				for (int x = -1; x < 2; x++) {
+					for (int z = -1; z < 2; z++) {
+						if (!(x == 0 && z == 0) && occlusion(vec3(x, y, z), prim_box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
+							float bl = 0.0f;
+							if (abs(z * x) > 0) {
+								bl = (1.0f - sqrt(pow(prim_box_pos.z + float(z) * 0.5f - primary_hit.z, 2.0f) + pow(prim_box_pos.x + float(x) * 0.5f - primary_hit.x, 2.0f)));
+							}
+							else {
+								bl = (((x == 0) ? 0.0f : abs(prim_box_pos.x - float(x) * 0.5f - primary_hit.x))
+									+ ((z == 0) ? 0.0f : abs(prim_box_pos.z - float(z) * 0.5f - primary_hit.z)));
+							}
+							shade = max(bl, shade);
+						}
+					}
 				}
 			}
 			else {
-				if (color.w < far)
-					//add light from hit voxel
-					illumination += vec3(tmpmat.y) * color.xyz * 12.0f;
-				else
-					//add sky light
-					illumination += scene.skyLight.xyz;
-			}
-			if (color.w >= far && spp == 0) {
-				break;
-			}
-			else {
-				ray = primary_ray;
-				color = ray_pixel_color;
-
-				vec3 origin = ray.orig + ray.dir * (color.w - ray_retreat);
-
-				if (spp == 0) hit = origin;
-
-				if (bounces == 0 && spp == 0) {
-					primary_hit = hit;
-				}				
-
-				vec3 dir;
-				if (spp < 1) {
-					//shadow sharpness
-					vec3 jitter = hash3(seed) * 2.0f - 1.0f;
-					jitter *= scene.sunParam.z; 
-					//shadow ray
-					dir = sunDirection + jitter;
-				}
-				else {
-					//GI ray
-					dir = ray.dir;
-					vec3 normal = vec3(1.0f);
-					normal.x = ((hit.x >= box_pos.x + 0.5f) ? 1.0f : 
-						((hit.x <= box_pos.x - 0.5f) ? -1.0f : 0.0f));
-
-					normal.y = ((hit.y >= box_pos.y + 0.5f) ? 1.0f : 
-						((hit.y <= box_pos.y - 0.5f) ? -1.0f : 0.0f));
-
-					normal.z = ((hit.z >= box_pos.z + 0.5f) ? 1.0f : 
-						((hit.z <= box_pos.z - 0.5f) ? -1.0f : 0.0f));
-
-					dir = cosWeightedRandomHemisphereDirection(normal + vec3(0.001f), seed);
-				}
-
-				load_ray(ray, dir, origin);
-			}
-		}
-
-		if (ray_pixel_color.w >= far) {
-			backgroundColor = getBackgroundColor(ray, sunDirection);
-			ray_pixel_color.xyz = backgroundColor;
-		}
-
-		if (bounces == 0) {
-			pixel_color = ray_pixel_color;
-
-			//AO
-			const float size = 0.5f;
-			if (ray_pixel_color.w < far) {
-				bool a = hit.x >= box_pos.x + size;
-				bool b = hit.x <= box_pos.x - size;
-				float shade = 0.0f;
+				a = primary_hit.z >= prim_box_pos.z + size;
+				b = primary_hit.z <= prim_box_pos.z - size;
 				if (a || b) {
-					int x = (a) ? 1 : -1;
-
-					for (int y = -1; y < 2; y++) {
-						for (int z = -1; z < 2; z++) {
-							if (!(y == 0 && z == 0) && occlusion(vec3(x, y, z), box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
+					int z = (a) ? 1 : -1;
+					for (int x = -1; x < 2; x++) {
+						for (int y = -1; y < 2; y++) {
+							if (!(y == 0 && x == 0) && occlusion(vec3(x, y, z), prim_box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
 								float bl = 0.0f;
-								if (abs(z * y) > 0) {
-									bl = (1.0f - sqrt(pow(box_pos.z + float(z) * 0.5f - hit.z, 2.0f) + pow(box_pos.y + float(y) * 0.5f - hit.y, 2.0f)));
+								if (abs(y * x) > 0) {
+									bl = (1.0f - sqrt(pow(prim_box_pos.y + float(y) * 0.5f - primary_hit.y, 2.0f) + pow(prim_box_pos.x + float(x) * 0.5f - primary_hit.x, 2.0f)));
 								}
 								else {
-									bl = (((y == 0) ? 0.0f : abs(box_pos.y - float(y) * 0.5f - hit.y))
-										+ ((z == 0) ? 0.0f : abs(box_pos.z - float(z) * 0.5f - hit.z)));
+									bl = (((y == 0) ? 0.0f : abs(prim_box_pos.y - float(y) * 0.5f - primary_hit.y))
+										+ ((x == 0) ? 0.0f : abs(prim_box_pos.x - float(x) * 0.5f - primary_hit.x)));
 								}
 								shade = max(bl, shade);
 							}
 						}
 					}
 				}
-				else {
-					a = hit.y >= box_pos.y + size;
-					b = hit.y <= box_pos.y - size;
-					if (a || b) {
-						int y = (a) ? 1 : -1;
-						for (int x = -1; x < 2; x++) {
-							for (int z = -1; z < 2; z++) {
-								if (!(x == 0 && z == 0) && occlusion(vec3(x, y, z), box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
-									float bl = 0.0f;
-									if (abs(z * x) > 0) {
-										bl = (1.0f - sqrt(pow(box_pos.z + float(z) * 0.5f - hit.z, 2.0f) + pow(box_pos.x + float(x) * 0.5f - hit.x, 2.0f)));
-									}
-									else {
-										bl = (((x == 0) ? 0.0f : abs(box_pos.x - float(x) * 0.5f - hit.x))
-											+ ((z == 0) ? 0.0f : abs(box_pos.z - float(z) * 0.5f - hit.z)));
-									}
-									shade = max(bl, shade);
-								}
-							}
-						}
-					}
-					else {
-						a = hit.z >= box_pos.z + size;
-						b = hit.z <= box_pos.z - size;
-						if (a || b) {
-							int z = (a) ? 1 : -1;
-							for (int x = -1; x < 2; x++) {
-								for (int y = -1; y < 2; y++) {
-									if (!(y == 0 && x == 0) && occlusion(vec3(x, y, z), box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
-										float bl = 0.0f;
-										if (abs(y * x) > 0) {
-											bl = (1.0f - sqrt(pow(box_pos.y + float(y) * 0.5f - hit.y, 2.0f) + pow(box_pos.x + float(x) * 0.5f - hit.x, 2.0f)));
-										}
-										else {
-											bl = (((y == 0) ? 0.0f : abs(box_pos.y - float(y) * 0.5f - hit.y))
-												+ ((x == 0) ? 0.0f : abs(box_pos.x - float(x) * 0.5f - hit.x)));
-										}
-										shade = max(bl, shade);
-									}
-								}
-							}
-						}
-					}
+			}
+		}
+		pixel_color = mix(pixel_color, vec4(0.0f, 0.0f, 0.0f, pixel_color.w), pow(shade, 2.0f) * 0.1f);
+	
+		//shadow for primary ray
+		ray.orig = primary_hit;	
+		vec3 jitter = (hash3(seed) * 2.0f - 1.0f) * scene.sunParam.z;
+		ray.dir = normalize(sunDirection + jitter);
+		vec4 shadowColor, shadowMat;
+		vec3 shadow_box_pos;
+		if(octree_get_pixel(ray, far, shadowColor, shadowMat, shadow_box_pos)) illumination *= 0.1f;
+
+		//GI ray
+		for(int GIsample = 0; GIsample < gi_samples; GIsample++){
+			ray.orig = primary_hit;	
+			vec3 primNormal = vec3(1.0f);
+			primNormal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f) ? 1.0f : 
+				((primary_hit.x <= prim_box_pos.x - 0.5f) ? -1.0f : 0.0f));
+
+			primNormal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f) ? 1.0f : 
+				((primary_hit.y <= prim_box_pos.y - 0.5f) ? -1.0f : 0.0f));
+
+			primNormal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f) ? 1.0f : 
+				((primary_hit.z <= prim_box_pos.z - 0.5f) ? -1.0f : 0.0f));
+
+			ray.dir = cosWeightedRandomHemisphereDirection(primNormal + vec3(0.001f), seed);
+			vec4 giColor, giMat;
+			vec3 gi_box_pos;
+			if (octree_get_pixel(ray, far / 8.0f, giColor, giMat, gi_box_pos))
+				//add light from hit voxel
+				illumination += vec3(giMat.y) * giColor.xyz * 12.0f;
+			else
+				//add sky light
+				illumination += scene.skyLight.xyz;
+		}
+
+		//reflections
+		if (primMat.x > 0.0f){
+			vec3 reflHit = primary_hit;
+			vec3 refl_box_pos = prim_box_pos;
+			vec4 reflMat = primMat;
+			vec4 reflColor;
+			for(int bounces = 0; bounces < 2; bounces++){				
+				Bounce(primary_ray, reflHit, refl_box_pos, 0.5f);
+				vec3 refl_jitter = (hash3(seed) * 2.0f - 1.0f) * 0.2f * reflMat.z;
+				primary_ray.dir = normalize(primary_ray.dir + refl_jitter);				
+				vec4 tmpMat = reflMat;
+				if(reflMat.x <= 0.0f) break;
+				reflColor.xyz = getBackgroundColor(primary_ray, sunDirection);
+				reflMat = vec4(0.0f);
+				bool _hit = octree_get_pixel(primary_ray, far, reflColor, reflMat, refl_box_pos);
+				//blend reflections			
+				float intensity = tmpMat.x;
+				if(tmpMat.z <= 0.0f && primMat.z <= 0.0f){
+					//specular reflection
+					pixel_color.xyz = mix(pixel_color.xyz, reflColor.xyz, intensity);
 				}
-				pixel_color = mix(pixel_color, vec4(0.0f, 0.0f, 0.0f, ray_pixel_color.w), pow(shade, 2.0f) * 0.1f);
+				else{
+					//mate reflection (goes to the denoiser together with illumination)
+					illumination.xyz = mix(pixel_color.xyz, reflColor.xyz, intensity) * clamp(illumination.xyz, vec3(0.0f), vec3(1.0f)) * float(gi_samples);
+				}
+				if (reflMat.y > 0.0f) { 
+					//if hit light source make sure the clamped multiplier is 1.0
+					illumination = vec3(64.0f);
+				}
+				if(!_hit) break;
+				reflHit = primary_ray.orig + primary_ray.dir * (reflColor.w - ray_retreat);
+
+				//reflection shadow ray
+				ray.orig = reflHit;	
+				ray.dir = normalize(sunDirection + jitter);
+				vec4 reflShadowColor, reflShadowMat;
+				vec3 refl_shadow_box_pos;
+				if(octree_get_pixel(ray, far, reflShadowColor, reflShadowMat, refl_shadow_box_pos)) illumination *= 0.5f;
 			}
 		}
-		else {
-			//blend reflections
-			float intensity = prevmat.x;
-			if(prevmat.z <= 0.0f && prim_mat.z <= 0.0f){
-				//specular reflection
-				pixel_color.xyz = mix(pixel_color.xyz, ray_pixel_color.xyz, intensity);
-			}
-			else{
-				//mate reflection (goes to the denoiser together with illumination)
-				illumination.xyz = mix(pixel_color.xyz, ray_pixel_color.xyz, intensity) * clamp(illumination.xyz, vec3(0.0f), vec3(1.0f)) * float(gi_samples);
-			}
-		}
-
-		if (vmat.x <= 0.0f) break;
-		else prevmat = vmat;
-
-		//reflection ray
-		if (ray_pixel_color.w >= far) break;
-		Bounce(primary_ray, hit, box_pos, 0.5f);
-		vec3 jitter = (hash3(seed) * 2.0f - 1.0f) * 0.2f * prevmat.z;
-		ray = primary_ray;
-		ray.dir += jitter;
+	}
+	else{
+		//if hit sky prevent it from being dimmed
+		illumination = vec3(64.0f);
 	}
 	
 	float w = pixel_color.w;
@@ -586,7 +532,7 @@ void main() {
 	vec4 light = vec4(0.0f);
 	illumination /= float(gi_samples);
 	if (pixel.x > 0.0f && pixel.y > 0.0f && pixel.y < 1.0f && pixel.x < 1.0) {
-		if (distance(scene.prev_pos.xyz + ray_dir * ((texture(light_high, pixel).w * 256.0f + texture(light_low, pixel).w) * 255.0f / 2.0f), primary_hit) < 0.5f) {
+		if (distance(scene.prev_pos.xyz + ray_dir * ((texture(light_high, pixel).w * 256.0f + texture(light_low, pixel).w) * 255.0f / 2.0f), primary_hit) < 0.6f) {
 			acc_ill = texture(light_low, pixel);
 			light = floor((acc_ill * 20.0f + vec4(illumination.x, illumination.y, illumination.z, 0.0f)) / 21.0f * 255.0f) / 255.0f;
 		}
