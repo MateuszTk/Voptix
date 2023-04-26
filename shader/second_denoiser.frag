@@ -22,7 +22,7 @@ void main() {
         for (; testPos.y < 2.0f; testPos.y++) {
             for (testPos.x = -1.0f; testPos.x < 2.0f; testPos.x++) {
                 if(testPos != vec2(0.0f, 0.0f)) {
-                    pos = clamp(((testPos * 9.0f) + gl_FragCoord.xy) / screen_size, 0.0f, 1.0f);
+                    pos = clamp(((testPos * 3.0f) + gl_FragCoord.xy) / screen_size, 0.0f, 1.0f);
                     if (p_normal == texture(color[1], pos).xyz) {
                         light += texture(color[2], pos);
                         cnt++;
@@ -34,10 +34,5 @@ void main() {
 
     //average light from neighbors and this pixel
     light = (light + low_light) / cnt;
-
-    vec4 prim = texture(color[0], pixelPos);
-    vec4 outColorPrep = clamp(prim * light, 0.0f, 1.0f);
-    outColorPrep.w = prim.w;
-
-    outColor = outColorPrep;
+    outColor = light;
 }

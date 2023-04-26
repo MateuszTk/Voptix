@@ -25,7 +25,9 @@ function main() {
         fetch('./shader/fragment_shader.frag').then((response2) => response2.text()).then((fragment) => {
             fetch('./shader/post-processing.frag').then((pp_response2) => pp_response2.text()).then((pp_fragment) => {
                 fetch('./shader/display.frag').then((disp_response2) => disp_response2.text()).then((disp_fragment) => {
-                    init(vertex, fragment, gl, canvas, pp_fragment, disp_fragment);
+                    fetch('./shader/second_denoiser.frag').then((disp_response2) => disp_response2.text()).then((denoiser_fragment) => {
+                        init(vertex, fragment, gl, canvas, pp_fragment, disp_fragment, denoiser_fragment);
+                    });
                 });
             });
         });
@@ -62,6 +64,7 @@ const chunk_map = new Map;
 var fb_textures = [];
 var fb;
 var pp_fb;
+var den_fb;
 
 const octree_depth = 7;
 const chunk_size = ((1 - Math.pow(8, (octree_depth + 1))) / -7) * pixelsPerVoxel;
@@ -394,7 +397,7 @@ class UniformBuffer {
     }
 };
 
-function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
+function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denoiser_fragment) {
     for (let x = 0; x < 3; x++) {
         for (let z = 0; z < 3; z++) {
             let chunk = [];
@@ -557,7 +560,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     console.log(block);
     gl.uniformBlockBinding(shaderProgram, block, sceneBuffer.boundLocation);
 
-    //----shader program for post-processing----//
+    //----shader program for post-processing and 1st pass----//
     const canvasShaderProgram = initShaderProgram(gl, vsSource, pp_fragment);
     initBuffers(gl);
     const colorLoc = gl.getUniformLocation(canvasShaderProgram, "color[0]");
@@ -586,7 +589,44 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     gl.uniform2f(location, canvas.width, canvas.height);
 
 
-    //----shader program for display----//
+    //----shader program for 2nd pass----//
+    const denoiserShaderProgram = initShaderProgram(gl, vsSource, denoiser_fragment);
+    initBuffers(gl);
+    const denColorLoc = gl.getUniformLocation(denoiserShaderProgram, "color[0]");
+    gl.uniform1iv(denColorLoc, [0, 1, 2]);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[3]);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[4]);
+
+    //bind otuput
+    const den_texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, den_texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    fb_textures.push(den_texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    den_fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, den_fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, den_texture, 0);
+    fb_textures.push(den_texture);
+
+    gl.drawBuffers([
+        gl.COLOR_ATTACHMENT0
+    ]);
+
+    const den_location = gl.getUniformLocation(denoiserShaderProgram, 'screen_size');
+    gl.uniform2f(den_location, canvas.width, canvas.height);
+
+
+    //----shader program for display and 3rd pass----//
     const dispShaderProgram = initShaderProgram(gl, vsSource, disp_fragment);
     initBuffers(gl);
     const dispcolorLoc = gl.getUniformLocation(dispShaderProgram, "color[0]");
@@ -599,7 +639,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[3]);
 
     gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[4]);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[5]);
 
     const disp_location = gl.getUniformLocation(dispShaderProgram, 'screen_size');
     gl.uniform2f(disp_location, canvas.width, canvas.height);
@@ -610,7 +650,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment) {
 
     //start render loop
     window.requestAnimationFrame(function (timestamp) {
-        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, 0.0, sceneBuffer);
+        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, 0.0, sceneBuffer, denoiserShaderProgram);
     });
 }
 
@@ -710,7 +750,7 @@ function resizeBuffers(canvas) {
     }
 }*/
 
-function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, time, sceneBuffer) {
+function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, time, sceneBuffer, denoiserShaderProgram) {
     updateCamera(gl);
     //resizeBuffers(canvas);
     const scene = [
@@ -769,6 +809,22 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
+    //second pass - denoiser
+    gl.useProgram(denoiserShaderProgram);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, den_fb);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
+
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[3]);
+
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[4]);
+
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
     //draw to display
     gl.useProgram(dispShaderProgram);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -780,7 +836,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[3]);
 
     gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[4]);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[5]);
 
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -972,7 +1028,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
             fps_time += deltaTime;
 
         wait++;
-        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, timestamp, sceneBuffer);
+        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, timestamp, sceneBuffer, denoiserShaderProgram);
     });
 }
 
