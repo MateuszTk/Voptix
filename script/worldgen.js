@@ -1,7 +1,7 @@
 var sceneConfig = {
     skyColorUP: [0.0, 162 / 255, 1.0],
     skyColorDown: [184 / 255, 242 / 255, 255 / 255],
-    skyLight: [0.9, 0.9, 0.9],
+    skyLight: [0.7, 0.7, 0.7],
     sunColor: [0.8, 0.8, 0.8],
     sunDirection: [2, 1, -1],
     sunSize: 0.18,

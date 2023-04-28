@@ -97,8 +97,7 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element, float voxelS
 	int chunk = chunk_map[chunkPos.z][chunkPos.x];
 
 	//3 lowest levels are subvoxels
-	level -= 3.0f;
-	level = (level < 0.0f) ? 0.0f : level;
+	level = max(level - 3.0f, 0.0f);
 
 	if (chunk == 0) {
 		fvoxel = textureLod(u_textures[0], fpos, level);
@@ -200,16 +199,15 @@ void load_primary_ray(inout Ray ray, vec2 pos, const float width, const float he
 	load_ray(ray, dir, scene.camera_origin.xyz);
 }
 
-void Bounce(inout Ray ray, vec3 hit, vec3 box_pos, float size) {
-
+void Bounce(inout Ray ray, vec3 hit, vec3 normal) {
 	ray.orig = hit;
-	ray.dir.x *= ((hit.x >= box_pos.x + size || hit.x <= box_pos.x - size) ? -1.0f : 1.0f);
-	ray.dir.y *= ((hit.y >= box_pos.y + size || hit.y <= box_pos.y - size) ? -1.0f : 1.0f);
-	ray.dir.z *= ((hit.z >= box_pos.z + size || hit.z <= box_pos.z - size) ? -1.0f : 1.0f);
+	ray.dir.x *= (normal.x > 0.0f ? -1.0f : 1.0f);
+	ray.dir.y *= (normal.y > 0.0f ? -1.0f : 1.0f);
+	ray.dir.z *= (normal.z > 0.0f ? -1.0f : 1.0f);
 }
 
 // draw single pixel queried from octree with a 3D ray
-bool octree_get_pixel(Ray ray, float max_dist, inout vec4 voutput, inout vec4 matoutput, inout vec3 box_pos) {
+bool octree_get_pixel(Ray ray, float max_dist, inout vec4 voutput, inout vec4 matoutput, inout vec3 box_pos, inout vec3 normals) {
 
 	vec3 ndir = ray.dir;
 
@@ -218,12 +216,7 @@ bool octree_get_pixel(Ray ray, float max_dist, inout vec4 voutput, inout vec4 ma
 
 	vec3 testPos = ray.orig;
 
-#ifdef LOD
-	float minLayer = 0.0f;
-	float LODmultiplier = 0.001f;
-#else
 	const float minLayer = 0.0f;
-#endif
 	float cellSize = 1.0f;
 
 	bvec3 comp = lessThan(ndir, vec3(0.0f));
@@ -255,8 +248,8 @@ bool octree_get_pixel(Ray ray, float max_dist, inout vec4 voutput, inout vec4 ma
 			}
 			else if (mask.y <= 0.0f) {
 				//nothing nearby - speed up
-				cellSize = clamp(cellSize * 2.0f, 1.0f, 512.0f);
-				layer = clamp(layer + 1.0f, 0.0f, 9.0f);
+				cellSize = min(cellSize * 2.0f, 512.0f);
+				layer = min(layer + 1.0f, 9.0f);
 			}
 		}
 		else {
@@ -265,13 +258,11 @@ bool octree_get_pixel(Ray ray, float max_dist, inout vec4 voutput, inout vec4 ma
 		if (move) {
 			vec3 pos_floor = floor(testPos / cellSize) * cellSize;
 			vec3 nextrayLength1D = mix(pos_floor + cellSize - testPos, testPos - pos_floor, comp) * unitStepSize;
-			dist += min(nextrayLength1D.x, min(nextrayLength1D.y, nextrayLength1D.z)) + 0.01f;
+			normals = vec3(lessThanEqual(nextrayLength1D.xyz, min(nextrayLength1D.yzx, nextrayLength1D.zxy)));
+			dist += dot(nextrayLength1D, normals) + 0.01f;
 
 			//position of curently tested voxel
 			testPos = ray.orig + (ndir * (dist + 0.01f));
-#ifdef LOD
-			minLayer = clamp(floor(dist * LODmultiplier), 0.0f, 2.0f);
-#endif
 		}
 	}
 
@@ -330,7 +321,7 @@ void main() {
 	animationTime = scene.camera_direction.z / 8.0f;
 
 	const float ray_retreat = 0.01f;
-	const int gi_samples = 2;
+	const int gi_samples = 1;
 	
 	//new
 	float seed = centerPos.x + centerPos.y * 3.43121412313 + fract(1.12345314312 * scene.screen.z);
@@ -342,7 +333,8 @@ void main() {
 	//primary ray
 	vec4 primMat = vec4(0.0f);
 	vec3 prim_box_pos = vec3(-1.0f);
-	bool hit = octree_get_pixel(ray, far, pixel_color, primMat, prim_box_pos);
+	vec3 primaryNormals;
+	bool hit = octree_get_pixel(ray, far, pixel_color, primMat, prim_box_pos, primaryNormals);
 	vec3 primary_hit = ray.orig + ray.dir * (pixel_color.w - ray_retreat);
 	if (hit) {
 		if (primMat.y > 0.0f) { 
@@ -350,106 +342,45 @@ void main() {
 			illumination = vec3(64.0f);
 		}
 
-		//fake AO
-		const float size = 0.5f;
-		bool a = primary_hit.x >= prim_box_pos.x + size;
-		bool b = primary_hit.x <= prim_box_pos.x - size;
-		float shade = 0.0f;
-		if (a || b) {
-			int x = (a) ? 1 : -1;
-
-			for (int y = -1; y < 2; y++) {
-				for (int z = -1; z < 2; z++) {
-					if (!(y == 0 && z == 0) && occlusion(vec3(x, y, z), prim_box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
-						float bl = 0.0f;
-						if (abs(z * y) > 0) {
-							bl = (1.0f - sqrt(pow(prim_box_pos.z + float(z) * 0.5f - primary_hit.z, 2.0f) + pow(prim_box_pos.y + float(y) * 0.5f - primary_hit.y, 2.0f)));
-						}
-						else {
-							bl = (((y == 0) ? 0.0f : abs(prim_box_pos.y - float(y) * 0.5f - primary_hit.y))
-								+ ((z == 0) ? 0.0f : abs(prim_box_pos.z - float(z) * 0.5f - primary_hit.z)));
-						}
-						shade = max(bl, shade);
-					}
-				}
-			}
-		}
-		else {
-			a = primary_hit.y >= prim_box_pos.y + size;
-			b = primary_hit.y <= prim_box_pos.y - size;
-			if (a || b) {
-				int y = (a) ? 1 : -1;
-				for (int x = -1; x < 2; x++) {
-					for (int z = -1; z < 2; z++) {
-						if (!(x == 0 && z == 0) && occlusion(vec3(x, y, z), prim_box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
-							float bl = 0.0f;
-							if (abs(z * x) > 0) {
-								bl = (1.0f - sqrt(pow(prim_box_pos.z + float(z) * 0.5f - primary_hit.z, 2.0f) + pow(prim_box_pos.x + float(x) * 0.5f - primary_hit.x, 2.0f)));
-							}
-							else {
-								bl = (((x == 0) ? 0.0f : abs(prim_box_pos.x - float(x) * 0.5f - primary_hit.x))
-									+ ((z == 0) ? 0.0f : abs(prim_box_pos.z - float(z) * 0.5f - primary_hit.z)));
-							}
-							shade = max(bl, shade);
-						}
-					}
-				}
-			}
-			else {
-				a = primary_hit.z >= prim_box_pos.z + size;
-				b = primary_hit.z <= prim_box_pos.z - size;
-				if (a || b) {
-					int z = (a) ? 1 : -1;
-					for (int x = -1; x < 2; x++) {
-						for (int y = -1; y < 2; y++) {
-							if (!(y == 0 && x == 0) && occlusion(vec3(x, y, z), prim_box_pos, int(scene.chunk_offset.x), int(scene.chunk_offset.z))) {
-								float bl = 0.0f;
-								if (abs(y * x) > 0) {
-									bl = (1.0f - sqrt(pow(prim_box_pos.y + float(y) * 0.5f - primary_hit.y, 2.0f) + pow(prim_box_pos.x + float(x) * 0.5f - primary_hit.x, 2.0f)));
-								}
-								else {
-									bl = (((y == 0) ? 0.0f : abs(prim_box_pos.y - float(y) * 0.5f - primary_hit.y))
-										+ ((x == 0) ? 0.0f : abs(prim_box_pos.x - float(x) * 0.5f - primary_hit.x)));
-								}
-								shade = max(bl, shade);
-							}
-						}
-					}
-				}
-			}
-		}
-		pixel_color = mix(pixel_color, vec4(0.0f, 0.0f, 0.0f, pixel_color.w), pow(shade, 2.0f) * 0.1f);
-	
 		//shadow for primary ray
 		ray.orig = primary_hit;	
 		vec3 jitter = (hash3(seed) * 2.0f - 1.0f) * scene.sunParam.z;
 		ray.dir = normalize(sunDirection + jitter);
 		vec4 shadowColor, shadowMat;
 		vec3 shadow_box_pos;
-		if(octree_get_pixel(ray, far, shadowColor, shadowMat, shadow_box_pos)) illumination *= 0.1f;
+		vec3 shadowNormals;
+		if(octree_get_pixel(ray, far, shadowColor, shadowMat, shadow_box_pos, shadowNormals)) illumination *= 0.1f;
 
 		//GI ray
 		for(int GIsample = 0; GIsample < gi_samples; GIsample++){
 			ray.orig = primary_hit;	
-			vec3 primNormal = vec3(1.0f);
-			primNormal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f) ? 1.0f : 
-				((primary_hit.x <= prim_box_pos.x - 0.5f) ? -1.0f : 0.0f));
+			vec3 signedPrimNormal = primaryNormals;
+			signedPrimNormal.x *= ((primary_hit.x > prim_box_pos.x) ? 1.0f : -1.0f);
+			signedPrimNormal.y *= ((primary_hit.y > prim_box_pos.y) ? 1.0f : -1.0f);
+			signedPrimNormal.z *= ((primary_hit.z > prim_box_pos.z) ? 1.0f : -1.0f);
 
-			primNormal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f) ? 1.0f : 
-				((primary_hit.y <= prim_box_pos.y - 0.5f) ? -1.0f : 0.0f));
-
-			primNormal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f) ? 1.0f : 
-				((primary_hit.z <= prim_box_pos.z - 0.5f) ? -1.0f : 0.0f));
-
-			ray.dir = cosWeightedRandomHemisphereDirection(primNormal + vec3(0.001f), seed);
+			ray.dir = cosWeightedRandomHemisphereDirection(signedPrimNormal + vec3(0.001f), seed);
 			vec4 giColor, giMat;
 			vec3 gi_box_pos;
-			if (octree_get_pixel(ray, far / 8.0f, giColor, giMat, gi_box_pos))
+			vec3 normals;
+			if (octree_get_pixel(ray, far / 8.0f, giColor, giMat, gi_box_pos, normals)) {
 				//add light from hit voxel
 				illumination += vec3(giMat.y) * giColor.xyz * 12.0f;
-			else
+
+				ray.orig = ray.orig + ray.dir * (giColor.w - ray_retreat);
+				vec3 jitter = (hash3(seed) * 2.0f - 1.0f) * scene.sunParam.z;
+				ray.dir = normalize(sunDirection + jitter);
+				vec4 shadowColor, shadowMat;
+				vec3 shadow_box_pos;
+				vec3 shadowNormals;
+				if(!octree_get_pixel(ray, far, shadowColor, shadowMat, shadow_box_pos, shadowNormals)) {
+					illumination += giColor.xyz * 1.5f;
+				}
+			}
+			else{
 				//add sky light
 				illumination += scene.skyLight.xyz;
+			}
 		}
 
 		//reflections
@@ -458,15 +389,16 @@ void main() {
 			vec3 refl_box_pos = prim_box_pos;
 			vec4 reflMat = primMat;
 			vec4 reflColor;
+			vec3 norm;
 			for(int bounces = 0; bounces < 2; bounces++){				
-				Bounce(primary_ray, reflHit, refl_box_pos, 0.5f);
+				Bounce(primary_ray, reflHit, primaryNormals);
 				vec3 refl_jitter = (hash3(seed) * 2.0f - 1.0f) * 0.2f * reflMat.z;
 				primary_ray.dir = normalize(primary_ray.dir + refl_jitter);				
 				vec4 tmpMat = reflMat;
 				if(reflMat.x <= 0.0f) break;
 				reflColor.xyz = getBackgroundColor(primary_ray, sunDirection);
 				reflMat = vec4(0.0f);
-				bool _hit = octree_get_pixel(primary_ray, far, reflColor, reflMat, refl_box_pos);
+				bool _hit = octree_get_pixel(primary_ray, far, reflColor, reflMat, refl_box_pos, norm);
 				//blend reflections			
 				float intensity = tmpMat.x;
 				if(tmpMat.z <= 0.0f && primMat.z <= 0.0f){
@@ -489,7 +421,7 @@ void main() {
 				ray.dir = normalize(sunDirection + jitter);
 				vec4 reflShadowColor, reflShadowMat;
 				vec3 refl_shadow_box_pos;
-				if(octree_get_pixel(ray, far, reflShadowColor, reflShadowMat, refl_shadow_box_pos)) illumination *= 0.5f;
+				if(octree_get_pixel(ray, far, reflShadowColor, reflShadowMat, refl_shadow_box_pos, norm)) illumination *= 0.5f;
 			}
 		}
 	}
@@ -552,14 +484,11 @@ void main() {
 	pixel_color.rgb = vec3(float(deb_cnt_loc) / 100.0f);
 #endif
 	outColor[0] = pixel_color;
-
-	//normals
-	vec3 normal = vec3(1.0f);
+	
 	//gradient on normals helps denoiser not to blur edges
 	vec3 gradient = vec3(ivec3(prim_box_pos) % 255 + 1) / 255.0f;
-	normal.x = ((primary_hit.x >= prim_box_pos.x + 0.5f || primary_hit.x <= prim_box_pos.x - 0.5f) ? gradient.x : 0.0f);
-	normal.y = ((primary_hit.y >= prim_box_pos.y + 0.5f || primary_hit.y <= prim_box_pos.y - 0.5f) ? gradient.y : 0.0f);
-	normal.z = ((primary_hit.z >= prim_box_pos.z + 0.5f || primary_hit.z <= prim_box_pos.z - 0.5f) ? gradient.z : 0.0f);
+	//normals
+	vec3 normal = primaryNormals * gradient;
 
 	//ligting data output	
 	light.w = pixel_color.w;
