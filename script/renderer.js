@@ -19,6 +19,8 @@ function main() {
         return;
     }
 
+    worldParameter = window.location.search.substr(1);
+
     initBlockPicker();
 
     fetch('./shader/vertex_shader.vert').then((response) => response.text()).then((vertex) => {
@@ -35,6 +37,7 @@ function main() {
 
 }
 
+var worldParameter;
 var mouseX = 0, mouseY = 0;
 var pos = glMatrix.vec3.fromValues(0, 65, 0);
 var chunk_offset = glMatrix.vec3.fromValues(20, 0, 20);
