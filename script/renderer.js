@@ -599,7 +599,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
 
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[3]);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
 
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[4]);
@@ -636,7 +636,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
 
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[3]);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
 
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[5]);
@@ -817,7 +817,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
 
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[3]);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
 
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[4]);
@@ -833,7 +833,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
 
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[3]);
+    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
 
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, fb_textures[5]);

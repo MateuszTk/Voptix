@@ -37,6 +37,6 @@ void main() {
     light = (light + low_light) / cnt;
 
     light.w = low_light.w;
-    outColor[0] = p_light;
+    outColor[0] = vec4(vec3(ivec3(light.xyz * 255.0f) % 256) / 255.0f, p_light.w);
     outColor[1] = light;  
 }

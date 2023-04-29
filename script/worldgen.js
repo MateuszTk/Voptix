@@ -65,8 +65,16 @@ function start() {
         }
     }
 
+    for (let x = 0; x < 8; x++) {
+        for (let y = 0; y < 8; y++) {
+            for (let z = 0; z < 8; z++) {
+                pal_octree_set(x, z, y, 255, 255, 255, 255, 0, 255, 0, 5, 0);
+            }
+        }
+    }
+
     for (let i = 0; i < pal_size; i++) {
-        let startVariant = (i > 4) ? 0 : 1;
+        let startVariant = (i > 5) ? 0 : 1;
         for (let variant = startVariant; variant < pal_variants; variant++) {
             for (let x = 6; x < 10; x++) {
                 pal_octree_set(x % 8, 0, 0, 50, 50, 50, 255, 0, 0, 0, i, variant);

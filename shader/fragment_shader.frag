@@ -464,18 +464,19 @@ void main() {
 	vec4 light = vec4(0.0f);
 	illumination /= float(gi_samples);
 	if (pixel.x > 0.0f && pixel.y > 0.0f && pixel.y < 1.0f && pixel.x < 1.0) {
-		if (distance(scene.prev_pos.xyz + ray_dir * ((texture(light_high, pixel).w * 256.0f + texture(light_low, pixel).w) * 255.0f / 2.0f), primary_hit) < 0.6f) {
-			acc_ill = texture(light_low, pixel);
-			light = floor((acc_ill * 20.0f + vec4(illumination.x, illumination.y, illumination.z, 0.0f)) / 21.0f * 255.0f) / 255.0f;
+		vec4 lightData = (texture(light_high, pixel) * vec4(1.0f / 256.0f, 1.0f / 256.0f,1.0f / 256.0f, 256.0f) + texture(light_low, pixel));
+		if (distance(scene.prev_pos.xyz + ray_dir * (lightData.w * 255.0f / 2.0f), primary_hit) < 0.6f) {
+			acc_ill = lightData;
+			light = (acc_ill * 20.0f + vec4(illumination.xyz, 0.0f)) / 21.0f;
 		}
 		else {
 			//pixel_color.r = 1.0f;
-			light = vec4(illumination.x, illumination.y, illumination.z, 0.0f);
+			light.xyz = illumination;
 		}
 	}
 	else {
 		//pixel_color.r = 1.0f;
-		light = vec4(illumination.x, illumination.y, illumination.z, 0.0f);
+		light.xyz = illumination;
 	}
 	
 
