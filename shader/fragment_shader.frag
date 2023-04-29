@@ -487,9 +487,9 @@ void main() {
 	outColor[0] = pixel_color;
 	
 	//gradient on normals helps denoiser not to blur edges
-	vec3 gradient = vec3(ivec3(prim_box_pos) % 255 + 1) / 255.0f;
-	//normals
-	vec3 normal = primaryNormals * gradient;
+	vec3 gradient = (vec3(ivec3(prim_box_pos) % ivec3(127, 127, 255) + 1)) / 255.0f;
+	//normals, least significant bit corresponds to the material properties
+	vec3 normal = primaryNormals * gradient * vec3(2, 2, 1) + vec3(primMat.x > 0.0f, primMat.y > 0.0f, 0);
 
 	//ligting data output	
 	light.w = pixel_color.w;
