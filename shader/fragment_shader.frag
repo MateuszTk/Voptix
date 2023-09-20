@@ -43,6 +43,8 @@ uniform Scene{
 	vec4 sunColor;
 	vec4 sunDirection;
 	vec4 sunParam;
+	// x: GI_samples, y: reflection_samples
+	vec4 graphicsSettings;
 } scene;
 
 #ifdef DEBUG
@@ -321,11 +323,11 @@ void main() {
 	animationTime = scene.camera_direction.z / 8.0f;
 
 	const float ray_retreat = 0.01f;
-	const int gi_samples = 1;
+	int gi_samples = int(scene.graphicsSettings.x);
 	
 	//new
 	float seed = centerPos.x + centerPos.y * 3.43121412313 + fract(1.12345314312 * scene.screen.z);
-	vec3 illumination =	scene.sunColor.xyz * float(gi_samples);
+	vec3 illumination =	scene.sunColor.xyz * float(max(gi_samples, 1));
 	vec3 sunDirection = normalize(scene.sunDirection.xyz);
 	vec3 backgroundColor = getBackgroundColor(ray, sunDirection);
 	vec4 pixel_color = vec4(backgroundColor, far);
@@ -390,7 +392,8 @@ void main() {
 			vec4 reflMat = primMat;
 			vec4 reflColor;
 			vec3 norm;
-			for(int bounces = 0; bounces < 2; bounces++){				
+			int maxBounces = int(scene.graphicsSettings.y);
+			for(int bounces = 0; bounces < maxBounces; bounces++){				
 				Bounce(primary_ray, reflHit, primaryNormals);
 				vec3 refl_jitter = (hash3(seed) * 2.0f - 1.0f) * 0.2f * reflMat.z;
 				primary_ray.dir = normalize(primary_ray.dir + refl_jitter);				
@@ -407,7 +410,7 @@ void main() {
 				}
 				else{
 					//mate reflection (goes to the denoiser together with illumination)
-					illumination.xyz = mix(pixel_color.xyz, reflColor.xyz, intensity) * clamp(illumination.xyz, vec3(0.0f), vec3(1.0f)) * float(gi_samples);
+					illumination.xyz = mix(pixel_color.xyz, reflColor.xyz, intensity) * clamp(illumination.xyz, vec3(0.0f), vec3(1.0f)) * float(max(gi_samples, 1));
 				}
 				if (reflMat.y > 0.0f) { 
 					//if hit light source make sure the clamped multiplier is 1.0
@@ -462,7 +465,7 @@ void main() {
 	//direction.yz *= -1.0f;
 	vec4 acc_ill = vec4(-1);
 	vec4 light = vec4(0.0f);
-	illumination /= float(gi_samples);
+	illumination /= float(max(gi_samples, 1));
 	if (pixel.x > 0.0f && pixel.y > 0.0f && pixel.y < 1.0f && pixel.x < 1.0) {
 		vec4 lightData = (texture(light_high, pixel) * vec4(1.0f / 256.0f, 1.0f / 256.0f,1.0f / 256.0f, 256.0f) + texture(light_low, pixel));
 		if (distance(scene.prev_pos.xyz + ray_dir * (lightData.w * 255.0f / 2.0f), primary_hit) < 0.6f) {

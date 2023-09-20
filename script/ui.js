@@ -77,6 +77,19 @@ function scaleUpdate(scale = -1) {
 }
 scaleUpdate();
 
+function updateQuality() {
+	let sliderGIsampl = document.getElementById("GI_samples");
+	let outputGIsampl = document.getElementById("GI_samples_text");
+	outputGIsampl.innerHTML = sliderGIsampl.value;
+	graphicsSettings.GI_samples = parseInt(sliderGIsampl.value);
+
+	let sliderReflBounces = document.getElementById("refl_bounces");
+	let outputReflBounces = document.getElementById("refl_bounces_text");
+	outputReflBounces.innerHTML = sliderReflBounces.value;
+	graphicsSettings.reflection_samples = parseInt(sliderReflBounces.value);
+}
+updateQuality();
+
 var r = 255, g = 255, b = 255, c = 0, e = 0, p = 0, v = 0, ro = 0;
 var gora = document.getElementById("matPreview");
 var previewMask = document.getElementById("previewMask");

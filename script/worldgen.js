@@ -1,3 +1,8 @@
+var graphicsSettings = {
+    GI_samples: 1,
+    reflection_samples: 2
+};
+
 var sceneConfig = {
     skyColorUP: [0.0, 162 / 255, 1.0],
     skyColorDown: [184 / 255, 242 / 255, 255 / 255],

@@ -558,7 +558,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     ]);
 
     //scene buffer
-    const sceneBuffer = new UniformBuffer(gl, 4 * 13, 0);
+    const sceneBuffer = new UniformBuffer(gl, 4 * 13 + 4, 0);
     const block = gl.getUniformBlockIndex(shaderProgram, "Scene");
     console.log(block);
     gl.uniformBlockBinding(shaderProgram, block, sceneBuffer.boundLocation);
@@ -769,7 +769,8 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
         sceneConfig.skyLight[0], sceneConfig.skyLight[1], sceneConfig.skyLight[2],0,
         sceneConfig.sunColor[0], sceneConfig.sunColor[1], sceneConfig.sunColor[2],0,
         sceneConfig.sunDirection[0], sceneConfig.sunDirection[1], sceneConfig.sunDirection[2],0,
-        sceneConfig.sunSize, sceneConfig.sunDiscSharpness, sceneConfig.sunShadowSharpness,0
+        sceneConfig.sunSize, sceneConfig.sunDiscSharpness, sceneConfig.sunShadowSharpness, 0,
+        graphicsSettings.GI_samples, graphicsSettings.reflection_samples, 0, 0
     ];
     frame += 0.5;
     if (frame >= 0xffffff) frame = 0.0;

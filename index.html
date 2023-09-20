@@ -168,6 +168,7 @@
 				</section>
 				<section>
 					<h1>GRAPHICS</h1>
+					<h2>RESOLUTION</h2>
 					<select id="resolutionSelect" onchange="scaleUpdate(100)">
 						<option value="640x360">640 x 360 (16:9)</option>
 						<option value="800x600">800 x 600 (4:3)</option>
@@ -185,7 +186,18 @@
 						<span id="resText"></span><br>
 					</div>
 					<button onclick="resize()">Save</button>
-					<p>Refresh this page to apply the changes</p>
+					<p>Refresh this page to apply resolution changes</p>
+					<h2>GRAPHICS QUALITY</h2>
+					<div class="slider">
+						<label for="GI_samples">GI samples</label>
+						<input type="range" min="0" max="8" value="1" id="GI_samples" oninput="updateQuality()">
+						<span id="GI_samples_text"></span><br>
+					</div>
+					<div class="slider">
+						<label for="refl_bounces">Reflection bounces</label>
+						<input type="range" min="0" max="4" value="2" id="refl_bounces" oninput="updateQuality()">
+						<span id="refl_bounces_text"></span><br>
+					</div>
 				</section>
 			</div>
 		</div>
