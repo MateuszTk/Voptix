@@ -377,29 +377,6 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     console.log("Took " + (Date.now() - timer_start) + "ms");
 }
 
-class UniformBuffer {
-    constructor(gl, dataSize, boundLocation = 0) {
-        this.boundLocation = boundLocation;
-
-        this.data = new Float32Array(dataSize);
-
-        this.buffer = gl.createBuffer();
-        gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
-        gl.bufferData(gl.UNIFORM_BUFFER, this.data, gl.DYNAMIC_DRAW);
-        gl.bindBuffer(gl.UNIFORM_BUFFER, null);
-        gl.bindBufferBase(gl.UNIFORM_BUFFER, this.boundLocation, this.buffer);
-    }
-
-    update(gl, data, offset = 0) {
-        this.data.set(data, offset);
-
-        gl.bindBuffer(gl.UNIFORM_BUFFER, this.buffer);
-        gl.bufferSubData(gl.UNIFORM_BUFFER, 0, this.data, 0, null);
-        gl.bindBuffer(gl.UNIFORM_BUFFER, null);
-        gl.bindBufferBase(gl.UNIFORM_BUFFER, this.boundLocation, this.buffer);
-    }
-};
-
 function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denoiser_fragment) {
     for (let x = 0; x < 3; x++) {
         for (let z = 0; z < 3; z++) {
@@ -414,8 +391,8 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
         }
     }
 
-    const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
-    buffers = initBuffers(gl);
+    const shaderProgram = new ShaderProgram(gl, vsSource, fsSource);
+    initBuffers(gl);
 
     for (let x = 0; x < 3; x++) {
         for (let z = 0; z < 3; z++) {
@@ -424,31 +401,20 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     }
 
     //lighting data from previous frame
-    var textureLoc0 = gl.getUniformLocation(shaderProgram, "light_high");
-    //pixels.length - texture unit number
-    gl.uniform1i(textureLoc0, pixels.length);
     gl.activeTexture(gl.TEXTURE0 + pixels.length);
-    const prev_frame = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, prev_frame);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
+    var textureLoc0 = gl.getUniformLocation(shaderProgram.program, "light_high");
+    gl.uniform1i(textureLoc0, pixels.length);
+    const prev_frame = new Texture(gl, canvas.width, canvas.height, null);
+    prev_frame.bind();
+    
     //lighting data from previous frame
-    var textureLoc2 = gl.getUniformLocation(shaderProgram, "light_low");
-    //pixels.length - texture unit number
-    gl.uniform1i(textureLoc2, pixels.length + 2);
     gl.activeTexture(gl.TEXTURE0 + pixels.length + 2);
-    const light_low = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, light_low);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-
-    var textureLoc = gl.getUniformLocation(shaderProgram, "u_textures[0]");
+    var textureLoc2 = gl.getUniformLocation(shaderProgram.program, "light_low");
+    gl.uniform1i(textureLoc2, pixels.length + 2);
+    const light_low = new Texture(gl, canvas.width, canvas.height, null);
+    light_low.bind();
+    
+    var textureLoc = gl.getUniformLocation(shaderProgram.program, "u_textures[0]");
     // Tell the shader to use texture units 0 to pixel.length
     let tex_uni = [0];
     for (let j = 1; j < pixels.length; j++)
@@ -479,7 +445,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     }
 
     //voxel palette
-    var textureLocPal = gl.getUniformLocation(shaderProgram, "u_palette");
+    var textureLocPal = gl.getUniformLocation(shaderProgram.program, "u_palette");
     //pixels.length + 1, because we want to use texture unit after chunk data (pixels.length) and previous frame data (+1)
     //TODO - pixels.length is probably equal to 10 which means I use 3 more texture units over count guaranteed by specification
     gl.uniform1i(textureLocPal, pixels.length + 1);
@@ -513,7 +479,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     gl.bindTexture(gl.TEXTURE_3D, pal_texture);
 
     // Get the attribute location
-    var coord = gl.getAttribLocation(shaderProgram, "coordinates");
+    var coord = gl.getAttribLocation(shaderProgram.program, "coordinates");
 
     // Point an attribute to the currently bound VBO
     gl.vertexAttribPointer(coord, 2, gl.FLOAT, false, 0, 0);
@@ -521,35 +487,20 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     // Enable the attribute
     gl.enableVertexAttribArray(coord);
 
-    const texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const texture = new Texture(gl, canvas.width, canvas.height, null);
     fb_textures.push(texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    const texture1 = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture1);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const texture1 = new Texture(gl, canvas.width, canvas.height, null);
     fb_textures.push(texture1);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-    const texture2 = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture2);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const texture2 = new Texture(gl, canvas.width, canvas.height, null);
     fb_textures.push(texture2);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     fb = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, texture1, 0);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, texture2, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture.texture, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, texture1.texture, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, texture2.texture, 0);
 
     gl.drawBuffers([
         gl.COLOR_ATTACHMENT0,
@@ -559,27 +510,27 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
 
     //scene buffer
     const sceneBuffer = new UniformBuffer(gl, 4 * 13 + 4, 0);
-    const block = gl.getUniformBlockIndex(shaderProgram, "Scene");
+    const block = gl.getUniformBlockIndex(shaderProgram.program, "Scene");
     console.log(block);
-    gl.uniformBlockBinding(shaderProgram, block, sceneBuffer.boundLocation);
+    gl.uniformBlockBinding(shaderProgram.program, block, sceneBuffer.boundLocation);
 
     //----shader program for post-processing and 1st pass----//
-    const canvasShaderProgram = initShaderProgram(gl, vsSource, pp_fragment);
+    const canvasShaderProgram = new ShaderProgram(gl, vsSource, pp_fragment);
     initBuffers(gl);
-    const colorLoc = gl.getUniformLocation(canvasShaderProgram, "color[0]");
+    const colorLoc = gl.getUniformLocation(canvasShaderProgram.program, "color[0]");
     gl.uniform1iv(colorLoc, [0,1]);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[1]);
+    fb_textures[1].bind();
 
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
+    fb_textures[2].bind();
 
     //bind otuput for pp and last frame
     pp_fb = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, pp_fb);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, prev_frame, 0);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, light_low, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, prev_frame.texture, 0);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, light_low.texture, 0);
     fb_textures.push(prev_frame);
     fb_textures.push(light_low);
 
@@ -588,63 +539,57 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
         gl.COLOR_ATTACHMENT1
     ]);
 
-    const location = gl.getUniformLocation(canvasShaderProgram, 'screen_size');
+    const location = gl.getUniformLocation(canvasShaderProgram.program, 'screen_size');
     gl.uniform2f(location, canvas.width, canvas.height);
 
 
     //----shader program for 2nd pass----//
-    const denoiserShaderProgram = initShaderProgram(gl, vsSource, denoiser_fragment);
+    const denoiserShaderProgram = new ShaderProgram(gl, vsSource, denoiser_fragment);
     initBuffers(gl);
-    const denColorLoc = gl.getUniformLocation(denoiserShaderProgram, "color[0]");
+    const denColorLoc = gl.getUniformLocation(denoiserShaderProgram.program, "color[0]");
     gl.uniform1iv(denColorLoc, [0, 1, 2]);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
+    fb_textures[0].bind();
 
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
+    fb_textures[2].bind();
 
     gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[4]);
+    fb_textures[4].bind();
 
     //bind otuput
-    const den_texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, den_texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    const den_texture = new Texture(gl, canvas.width, canvas.height, null);
     fb_textures.push(den_texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     den_fb = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, den_fb);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, den_texture, 0);
-    fb_textures.push(den_texture);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, den_texture.texture, 0);
 
     gl.drawBuffers([
         gl.COLOR_ATTACHMENT0
     ]);
 
-    const den_location = gl.getUniformLocation(denoiserShaderProgram, 'screen_size');
+    const den_location = gl.getUniformLocation(denoiserShaderProgram.program, 'screen_size');
     gl.uniform2f(den_location, canvas.width, canvas.height);
 
 
     //----shader program for display and 3rd pass----//
-    const dispShaderProgram = initShaderProgram(gl, vsSource, disp_fragment);
+    const dispShaderProgram = new ShaderProgram(gl, vsSource, disp_fragment);
     initBuffers(gl);
-    const dispcolorLoc = gl.getUniformLocation(dispShaderProgram, "color[0]");
+    const dispcolorLoc = gl.getUniformLocation(dispShaderProgram.program, "color[0]");
     gl.uniform1iv(dispcolorLoc, [0,1,2]);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
+    fb_textures[0].bind();
 
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
+    fb_textures[2].bind();
 
     gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[5]);
+    fb_textures[5].bind();
 
-    const disp_location = gl.getUniformLocation(dispShaderProgram, 'screen_size');
+    const disp_location = gl.getUniformLocation(dispShaderProgram.program, 'screen_size');
     gl.uniform2f(disp_location, canvas.width, canvas.height);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
@@ -777,17 +722,17 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     prev_rotation = glMatrix.vec3.clone(rotation);
     prev_position = glMatrix.vec3.clone(pos);
 
-    gl.useProgram(shaderProgram);
+    shaderProgram.use();
     gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
 
-    sceneBuffer.update(gl, scene);
+    sceneBuffer.update(scene, 0);
 
     for (let x = 0; x < 3; x++) {
         for (let z = 0; z < 3; z++) {
             chunk_id_map[x + z * 3] = (x + chunk_offset[0] + 2) % 3 + ((z + chunk_offset[2] + 2) % 3) * 3;
         }
     }
-    var map_location = gl.getUniformLocation(shaderProgram, 'chunk_map');
+    var map_location = gl.getUniformLocation(shaderProgram.program, 'chunk_map');
     gl.uniform3iv(map_location, chunk_id_map);
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -801,46 +746,46 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     }
 
     //post-processing
-    gl.useProgram(canvasShaderProgram);
+    canvasShaderProgram.use();
     gl.bindFramebuffer(gl.FRAMEBUFFER, pp_fb);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[1]);
+    fb_textures[1].bind();
 
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
+    fb_textures[2].bind();
 
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     //second pass - denoiser
-    gl.useProgram(denoiserShaderProgram);
+    denoiserShaderProgram.use();
     gl.bindFramebuffer(gl.FRAMEBUFFER, den_fb);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
+    fb_textures[0].bind();
 
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
+    fb_textures[2].bind();
 
     gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[4]);
+    fb_textures[4].bind();
 
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     //draw to display
-    gl.useProgram(dispShaderProgram);
+    dispShaderProgram.use();
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[0]);
+    fb_textures[0].bind();
 
     gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[2]);
+    fb_textures[2].bind();
 
     gl.activeTexture(gl.TEXTURE2);
-    gl.bindTexture(gl.TEXTURE_2D, fb_textures[5]);
+    fb_textures[5].bind();
 
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

@@ -34,42 +34,120 @@ function initBuffers(gl) {
     };
 }
 
-function initShaderProgram(gl, vsSource, fsSource) {
-    const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
-    const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+class Texture {
+    #gl
+    #texture
+    #width
+    #height
 
-    // Create the shader program
+    constructor(gl, width, height, image = null) {
+        this.#gl = gl;
+        this.#width = width;
+        this.#height = height;
 
-    const shaderProgram = gl.createProgram();
-    gl.attachShader(shaderProgram, vertexShader);
-    gl.attachShader(shaderProgram, fragmentShader);
-    gl.linkProgram(shaderProgram);
+        this.#texture = this.#gl.createTexture();
+        this.#gl.bindTexture(this.#gl.TEXTURE_2D, this.#texture);
 
-    // If creating the shader program failed, alert
-    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-        alert('Unable to initialize the shader program: ' + gl.getProgramInfoLog(shaderProgram));
-        return null;
+        // Set the parameters so we can render any size image.
+        this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_S, this.#gl.CLAMP_TO_EDGE);
+        this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_T, this.#gl.CLAMP_TO_EDGE);
+        this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MIN_FILTER, this.#gl.LINEAR);
+        this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAG_FILTER, this.#gl.LINEAR);
+
+        // Upload the image into the texture.
+        this.#gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.#width, this.#height, 0, gl.RGBA, gl.UNSIGNED_BYTE, image);
+
+        this.#gl.bindTexture(this.#gl.TEXTURE_2D, null);
     }
 
-    gl.useProgram(shaderProgram);
-    return shaderProgram;
-}
-
-function loadShader(gl, type, source) {
-    const shader = gl.createShader(type);
-
-    // Send the source to the shader object
-    gl.shaderSource(shader, source);
-
-    // Compile the shader program
-    gl.compileShader(shader);
-
-    // See if it compiled successfully
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        alert('An error occurred compiling the shaders: ' + gl.getShaderInfoLog(shader));
-        gl.deleteShader(shader);
-        return null;
+    bind() {
+        this.#gl.bindTexture(this.#gl.TEXTURE_2D, this.#texture);
     }
 
-    return shader;
-}
+    get texture() {
+        return this.#texture;
+    }
+};
+class UniformBuffer {
+    #gl
+    #data
+    #buffer
+    #boundLocation
+
+    constructor(gl, dataSize, boundLocation = 0) {
+        this.#gl = gl;
+        this.#boundLocation = boundLocation;
+
+        this.#data = new Float32Array(dataSize);
+
+        this.#buffer = this.#gl.createBuffer();
+        this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, this.#buffer);
+        this.#gl.bufferData(this.#gl.UNIFORM_BUFFER, this.#data, this.#gl.DYNAMIC_DRAW);
+        this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, null);
+        this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, this.#boundLocation, this.#buffer);
+    }
+
+    update(data, offset) {
+        this.#data.set(data, offset);
+
+        this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, this.#buffer);
+        this.#gl.bufferSubData(this.#gl.UNIFORM_BUFFER, 0, this.#data, 0, null);
+        this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, null);
+        this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, this.#boundLocation, this.#buffer);
+    }
+};
+
+class ShaderProgram {
+    #shaderProgram
+    #glContext
+
+    constructor(gl, vsSource, fsSource) {
+        this.#glContext = gl;
+      //  this.#shaderProgram = initShaderProgram(gl, vsSource, fsSource);
+       // console.log(this.#shaderProgram);
+
+        const vertexShader = this.#loadShader(this.#glContext.VERTEX_SHADER, vsSource);
+        const fragmentShader = this.#loadShader(this.#glContext.FRAGMENT_SHADER, fsSource);
+
+        // Create the shader program
+        this.#shaderProgram = this.#glContext.createProgram();
+        this.#glContext.attachShader(this.#shaderProgram, vertexShader);
+        this.#glContext.attachShader(this.#shaderProgram, fragmentShader);
+        this.#glContext.linkProgram(this.#shaderProgram);
+
+        // If creating the shader program failed, alert
+        if (!this.#glContext.getProgramParameter(this.#shaderProgram, this.#glContext.LINK_STATUS)) {
+            alert('Unable to initialize the shader program: ' + this.#glContext.getProgramInfoLog(this.#shaderProgram));
+            return;
+        }
+
+        this.#glContext.useProgram(this.#shaderProgram);
+    }
+
+    get program() {
+        return this.#shaderProgram;
+    }
+
+    use() {
+        this.#glContext.useProgram(this.#shaderProgram);
+    }
+
+    #loadShader(type, source) {
+        const shader = this.#glContext.createShader(type);
+
+        // Send the source to the shader object
+        this.#glContext.shaderSource(shader, source);
+
+        // Compile the shader program
+        this.#glContext.compileShader(shader);
+
+        // See if it compiled successfully
+        if (!this.#glContext.getShaderParameter(shader, this.#glContext.COMPILE_STATUS)) {
+            alert('An error occurred compiling the shaders: ' + this.#glContext.getShaderInfoLog(shader));
+            this.#glContext.deleteShader(shader);
+            return null;
+        }
+
+        return shader;
+    }
+};
