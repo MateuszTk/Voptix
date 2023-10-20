@@ -151,3 +151,48 @@ class ShaderProgram {
         return shader;
     }
 };
+
+class Framebuffer {
+    #gl
+    #framebuffer
+    #textures
+    #width
+    #height
+
+    constructor(gl, width, height, textureCnt) {
+        this.#gl = gl;
+        this.#width = width;
+        this.#height = height;
+
+        this.#framebuffer = this.#gl.createFramebuffer();
+        this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#framebuffer);
+
+        this.#textures = [];
+        let attachments = [];
+        for (let i = 0; i < textureCnt; i++) {
+            const texture = new Texture(this.#gl, width, height);
+            this.#gl.framebufferTexture2D(this.#gl.FRAMEBUFFER, this.#gl.COLOR_ATTACHMENT0 + i, this.#gl.TEXTURE_2D, texture.texture, 0);
+            attachments.push(this.#gl.COLOR_ATTACHMENT0 + i);
+            this.#textures.push(texture);
+        }
+
+        this.#gl.drawBuffers(attachments);
+
+        this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, null);
+    }
+
+    bind(setViewport = false) {
+        this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#framebuffer);
+        if (setViewport) {
+            this.#gl.viewport(0, 0, this.#width, this.#height);
+        }
+    }
+
+    unbind() {
+        this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, null);
+    }
+
+    get textures() {
+        return this.#textures;
+    }
+};
