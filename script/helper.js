@@ -64,6 +64,10 @@ class Texture {
         this.#gl.bindTexture(this.#gl.TEXTURE_2D, this.#texture);
     }
 
+    unbind() {
+        this.#gl.bindTexture(this.#gl.TEXTURE_2D, null);
+    }
+
     get texture() {
         return this.#texture;
     }
@@ -171,9 +175,11 @@ class Framebuffer {
         let attachments = [];
         for (let i = 0; i < textureCnt; i++) {
             const texture = new Texture(this.#gl, width, height);
+            texture.bind();
             this.#gl.framebufferTexture2D(this.#gl.FRAMEBUFFER, this.#gl.COLOR_ATTACHMENT0 + i, this.#gl.TEXTURE_2D, texture.texture, 0);
             attachments.push(this.#gl.COLOR_ATTACHMENT0 + i);
             this.#textures.push(texture);
+            texture.unbind();
         }
 
         this.#gl.drawBuffers(attachments);
@@ -196,3 +202,55 @@ class Framebuffer {
         return this.#textures;
     }
 };
+
+class Material {
+    #shaderProgram
+    #glContext
+    #textures = []
+    #vec2s = []
+    #firstTextureUnit
+
+    constructor(gl, shaderProgram, firstTextureUnit = 0) {
+        this.#glContext = gl;
+        this.#shaderProgram = shaderProgram;
+        this.#firstTextureUnit = firstTextureUnit;
+    }
+
+    use() {
+        this.#glContext.useProgram(this.#shaderProgram.program);
+
+        for (let i = 0; i < this.#textures.length; i++) {
+            this.#glContext.activeTexture(this.#glContext.TEXTURE0 + i + this.#firstTextureUnit);
+            this.#glContext.bindTexture(this.#glContext.TEXTURE_2D, this.#textures[i].texture.texture);
+        }
+
+        for (let i = 0; i < this.#vec2s.length; i++) {
+            this.#glContext.uniform2f(this.#vec2s[i].location, this.#vec2s[i].vec2x, this.#vec2s[i].vec2y);
+        }
+    }
+
+    addTexture(name, texture) {
+        this.#textures.push({ name: name, texture: texture });
+        let i = this.#textures.length - 1;
+        this.#glContext.activeTexture(this.#glContext.TEXTURE0 + i + this.#firstTextureUnit);
+        this.#glContext.bindTexture(this.#glContext.TEXTURE_2D, this.#textures[i].texture.texture);
+        this.#glContext.uniform1i(this.#glContext.getUniformLocation(this.#shaderProgram.program, name), i + this.#firstTextureUnit);
+    }
+
+    addVec2f(name, x, y) {
+        this.#vec2s.push({
+            name: name,
+            vec2x: x,
+            vec2y: y,
+            location: this.#glContext.getUniformLocation(this.#shaderProgram.program, name)
+        });
+    }
+
+    get program() {
+        return this.#shaderProgram;
+    }
+
+    get textures() {
+        return this.#textures;
+    }
+}

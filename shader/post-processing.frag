@@ -1,7 +1,8 @@
 #version 300 es
 precision mediump float;
 
-uniform sampler2D color[2];
+uniform sampler2D color0;
+uniform sampler2D color1;
 uniform vec2 screen_size;
 
 out vec4[2] outColor;
@@ -13,8 +14,8 @@ void main() {
     vec2 pixelPos = gl_FragCoord.xy / screen_size;
     vec2 pos = vec2(0.0f);
 
-    vec4 p_light = texture(color[1], pixelPos);
-    vec4 low_light = texture(color[0], pixelPos);
+    vec4 p_light = texture(color1, pixelPos);
+    vec4 low_light = texture(color0, pixelPos);
     
     //accumuate light from neighbors
     vec3 p_normal = p_light.xyz;
@@ -24,8 +25,8 @@ void main() {
             for (testPos.x = -1.0f; testPos.x < 2.0f; testPos.x++) {
                 if(testPos != vec2(0.0f, 0.0f)) {
                     pos = clamp((testPos + gl_FragCoord.xy) / screen_size, 0.0f, 1.0f);
-                    if (p_normal == texture(color[1], pos).xyz) {
-                        light += texture(color[0], pos);
+                    if (p_normal == texture(color1, pos).xyz) {
+                        light += texture(color0, pos);
                         cnt++;
                     }
                 }

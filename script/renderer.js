@@ -64,7 +64,6 @@ const pal_pix_cnt = 2;
 const pal_variants = 8;
 const chunk_map = new Map;
 
-var fb_textures = [];
 var fb;
 var pp_fb;
 var den_fb;
@@ -434,8 +433,8 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     var textureLocPal = gl.getUniformLocation(shaderProgram.program, "u_palette");
     //pixels.length + 1, because we want to use texture unit after chunk data (pixels.length) and previous frame data (+1)
     //TODO - pixels.length is probably equal to 10 which means I use 3 more texture units over count guaranteed by specification
-    gl.uniform1i(textureLocPal, pixels.length + 1);
-    gl.activeTexture(gl.TEXTURE0 + pixels.length + 1);
+    gl.uniform1i(textureLocPal, pixels.length + 2);
+    gl.activeTexture(gl.TEXTURE0 + pixels.length + 2);
     pal_texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_3D, pal_texture);
 
@@ -475,9 +474,6 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
 
 
     fb = new Framebuffer(gl, canvas.width, canvas.height, 3);
-    fb_textures.push(fb.textures[0]);
-    fb_textures.push(fb.textures[1]);
-    fb_textures.push(fb.textures[2]);
 
     //scene buffer
     const sceneBuffer = new UniformBuffer(gl, 4 * 13 + 4, 0);
@@ -488,85 +484,63 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     //----shader program for post-processing and 1st pass----//
     const canvasShaderProgram = new ShaderProgram(gl, vsSource, pp_fragment);
     initBuffers(gl);
-    const colorLoc = gl.getUniformLocation(canvasShaderProgram.program, "color[0]");
-    gl.uniform1iv(colorLoc, [0,1]);
-
-    gl.activeTexture(gl.TEXTURE0);
-    fb_textures[1].bind();
-
-    gl.activeTexture(gl.TEXTURE1);
-    fb_textures[2].bind();
+    let canvasMat = new Material(gl, canvasShaderProgram);
+    canvasMat.addTexture("color0", fb.textures[1]);
+    canvasMat.addTexture("color1", fb.textures[2]);
+    canvasMat.addVec2f("screen_size", canvas.width, canvas.height);
 
     //bind otuput for pp and last frame
     pp_fb = new Framebuffer(gl, canvas.width, canvas.height, 2);
-    fb_textures.push(pp_fb.textures[0]);
-    fb_textures.push(pp_fb.textures[1]);
-
-    const location = gl.getUniformLocation(canvasShaderProgram.program, 'screen_size');
-    gl.uniform2f(location, canvas.width, canvas.height);
 
     // ----feedback loop----
     shaderProgram.use();
 
-    // attach the output textures of the 1st pass to the main (0th) pass
-    gl.activeTexture(gl.TEXTURE0 + pixels.length);
-    var textureLoc0 = gl.getUniformLocation(shaderProgram.program, "light_high");
-    gl.uniform1i(textureLoc0, pixels.length);
-    pp_fb.textures[0].bind();
-
-    gl.activeTexture(gl.TEXTURE0 + pixels.length + 2);
-    var textureLoc2 = gl.getUniformLocation(shaderProgram.program, "light_low");
-    gl.uniform1i(textureLoc2, pixels.length + 2);
-    pp_fb.textures[1].bind();
+    let mainMat = new Material(gl, shaderProgram, pixels.length);
+    mainMat.addTexture("light_high", pp_fb.textures[0]);
+    mainMat.addTexture("light_low", pp_fb.textures[1]);
 
     //----shader program for 2nd pass----//
     const denoiserShaderProgram = new ShaderProgram(gl, vsSource, denoiser_fragment);
     initBuffers(gl);
-    const denColorLoc = gl.getUniformLocation(denoiserShaderProgram.program, "color[0]");
-    gl.uniform1iv(denColorLoc, [0, 1, 2]);
+    let denMat = new Material(gl, denoiserShaderProgram);
+    denMat.addTexture("color1", fb.textures[2]);
+    denMat.addTexture("color2", pp_fb.textures[1]);
+    denMat.addVec2f("screen_size", canvas.width, canvas.height);
 
-    gl.activeTexture(gl.TEXTURE0);
-    fb_textures[0].bind();
-
-    gl.activeTexture(gl.TEXTURE1);
-    fb_textures[2].bind();
-
-    gl.activeTexture(gl.TEXTURE2);
-    fb_textures[4].bind();
-
-    //otuput
+    //output
     den_fb = new Framebuffer(gl, canvas.width, canvas.height, 1);
-    fb_textures.push(den_fb.textures[0]);
-
-    const den_location = gl.getUniformLocation(denoiserShaderProgram.program, 'screen_size');
-    gl.uniform2f(den_location, canvas.width, canvas.height);
-
 
     //----shader program for display and 3rd pass----//
     const dispShaderProgram = new ShaderProgram(gl, vsSource, disp_fragment);
     initBuffers(gl);
-    const dispcolorLoc = gl.getUniformLocation(dispShaderProgram.program, "color[0]");
-    gl.uniform1iv(dispcolorLoc, [0,1,2]);
 
-    gl.activeTexture(gl.TEXTURE0);
-    fb_textures[0].bind();
+    let dispMat = new Material(gl, dispShaderProgram);
+    dispMat.addTexture("color0", fb.textures[0]);
+    dispMat.addTexture("color1", fb.textures[2]);
+    dispMat.addTexture("color2", den_fb.textures[0]);
+    dispMat.addVec2f("screen_size", canvas.width, canvas.height);
 
-    gl.activeTexture(gl.TEXTURE1);
-    fb_textures[2].bind();
-
-    gl.activeTexture(gl.TEXTURE2);
-    fb_textures[5].bind();
-
-    const disp_location = gl.getUniformLocation(dispShaderProgram.program, 'screen_size');
-    gl.uniform2f(disp_location, canvas.width, canvas.height);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
     //call start in worldgen.js
     start();
 
+    let renderParams = {
+        canvas: canvas,
+        shaderProgram: shaderProgram,
+        canvasShaderProgram: canvasShaderProgram,
+        dispShaderProgram: dispShaderProgram,
+        sceneBuffer: sceneBuffer,
+        denoiserShaderProgram: denoiserShaderProgram,
+        dispMat: dispMat,
+        denMat: denMat,
+        canvasMat: canvasMat,
+        mainMat: mainMat
+    };
+
     //start render loop
     window.requestAnimationFrame(function (timestamp) {
-        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, 0.0, sceneBuffer, denoiserShaderProgram);
+        drawScene(renderParams, 0.0);
     });
 }
 
@@ -666,14 +640,14 @@ function resizeBuffers(canvas) {
     }
 }*/
 
-function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, time, sceneBuffer, denoiserShaderProgram) {
+function drawScene(renderParams, time) {
     updateCamera(gl);
     //resizeBuffers(canvas);
     const scene = [
         (pos[0] + 1.5 * size) * subSize, (pos[1]) * subSize, (pos[2] + 1.5 * size) * subSize,0,
         rotation[0], rotation[1], animationTime,0,
         40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],0,
-        canvas.width, canvas.height, frame,0,
+        renderParams.canvas.width, renderParams.canvas.height, frame,0,
         1.2, 0.01, 255.0 * 8.0, 0,//projection (fov near far)
         (prev_position[0] + 1.5 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + 1.5 * size) * subSize,0,
         prev_rotation[0], prev_rotation[1], prev_rotation[2],0,
@@ -690,72 +664,46 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
     prev_rotation = glMatrix.vec3.clone(rotation);
     prev_position = glMatrix.vec3.clone(pos);
 
-    shaderProgram.use();
+    renderParams.shaderProgram.use();
     fb.bind();
+    renderParams.mainMat.use();
 
-    sceneBuffer.update(scene, 0);
+    renderParams.sceneBuffer.update(scene, 0);
 
     for (let x = 0; x < 3; x++) {
         for (let z = 0; z < 3; z++) {
             chunk_id_map[x + z * 3] = (x + chunk_offset[0] + 2) % 3 + ((z + chunk_offset[2] + 2) % 3) * 3;
         }
     }
-    var map_location = gl.getUniformLocation(shaderProgram.program, 'chunk_map');
+    var map_location = gl.getUniformLocation(renderParams.shaderProgram.program, 'chunk_map');
     gl.uniform3iv(map_location, chunk_id_map);
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.viewport(0, 0, renderParams.canvas.width, renderParams.canvas.height);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     
     if (paint > 0) {
-        gl.readPixels(canvas.width / 2, canvas.height / 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);       
+        gl.readPixels(renderParams.canvas.width / 2, renderParams.canvas.height / 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);       
     }
 
     //post-processing
-    canvasShaderProgram.use();
+    renderParams.canvasShaderProgram.use(true);
     pp_fb.bind();
-
-    gl.activeTexture(gl.TEXTURE0);
-    fb_textures[1].bind();
-
-    gl.activeTexture(gl.TEXTURE1);
-    fb_textures[2].bind();
-
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    renderParams.canvasMat.use();
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     //second pass - denoiser
-    denoiserShaderProgram.use();
+    renderParams.denoiserShaderProgram.use(true);
     den_fb.bind();
-
-    gl.activeTexture(gl.TEXTURE0);
-    fb_textures[0].bind();
-
-    gl.activeTexture(gl.TEXTURE1);
-    fb_textures[2].bind();
-
-    gl.activeTexture(gl.TEXTURE2);
-    fb_textures[4].bind();
-
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    renderParams.denMat.use();
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     //draw to display
-    dispShaderProgram.use();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
-    gl.activeTexture(gl.TEXTURE0);
-    fb_textures[0].bind();
-
-    gl.activeTexture(gl.TEXTURE1);
-    fb_textures[2].bind();
-
-    gl.activeTexture(gl.TEXTURE2);
-    fb_textures[5].bind();
-
-    gl.viewport(0, 0, canvas.width, canvas.height);
+    renderParams.dispShaderProgram.use(true);
+    den_fb.unbind();
+    renderParams.dispMat.use();
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     if (paint > 0) {
@@ -945,7 +893,7 @@ function drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderPro
             fps_time += deltaTime;
 
         wait++;
-        drawScene(gl, canvas, shaderProgram, canvasShaderProgram, dispShaderProgram, timestamp, sceneBuffer, denoiserShaderProgram);
+        drawScene(renderParams, timestamp);
     });
 }
 
