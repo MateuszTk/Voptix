@@ -128,7 +128,7 @@ function chunkFunction(x, y, z, size, chunk_index) {
             for (let _z = 0; _z < size; _z++) {
                 for (let _y = 0; _y < size; _y++) {
                     if (_y < 10) {
-                        octree_set(_x, _y, _z, 6, 255, 0, 255, chunk_index);
+                        pixels[chunk_index].octree_set(_x, _y, _z, 6, 255, 0, 255);
                     }
                 }
             }
@@ -163,10 +163,10 @@ function chunkFunction(x, y, z, size, chunk_index) {
                             }
 
                             if (clp > 0)
-                                octree_set(_x, _y, _z, r, 255, 0, 255, chunk_index);
+                                pixels[chunk_index].octree_set(_x, _y, _z, r, 255, 0, 255);
                             else if (_y < 1) {
                                 r = 0;
-                                octree_set(_x, _y, _z, 3, 255, 0, 255, chunk_index);
+                                pixels[chunk_index].octree_set(_x, _y, _z, 3, 255, 0, 255);
                             }
 
                         }

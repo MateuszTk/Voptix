@@ -132,7 +132,7 @@ function save(name) {
         header[chunk_no + 1] = coord[1];
         header[chunk_no + 2] = coord[2];
         chunk_no += 3;
-        continuous_data.push(chunk[0]);
+        continuous_data.push(chunk.data[0]);
     });
 
     var a = document.createElement('a');
@@ -195,18 +195,13 @@ function loadFile() {
 
                     let offset = 4 + header_len * 4 * 3;
                     for (let c = 0; c < header_len; c++) {
-                        let chunk = [];
-                        let msize = size;
-                        for (let level = 0; level < octree_depth + 1; level++) {
-                            chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
-                            msize /= 2;
-                        }
+                        let chunk = new Chunk(0, 0, 0, pixelsPerVoxel, octree_depth);
 
                         for (let vx = 0; vx < size; vx++) {
                             for (let vy = 0; vy < size; vy++) {
                                 for (let vz = 0; vz < size; vz++) {
                                     let id = (vx + (vy + vz * size) * size) * 4;
-                                    chunk_octree_set(vx, vy, vz, continuous_data[offset + id], 255, continuous_data[offset + id + 2], continuous_data[offset + id + 3], chunk);
+                                    chunk.octree_set(vx, vy, vz, continuous_data[offset + id], 255, continuous_data[offset + id + 2], continuous_data[offset + id + 3]);
                                 }
                             }
                         }
@@ -214,21 +209,13 @@ function loadFile() {
                         chunk_map.set([header[c * 3 + 0], header[c * 3 + 1], header[c * 3 + 2]].join(','), chunk);
                     }
 
-                    //place loaded chunks or restore missing chunks nearby
                     for (let x = 0; x < 3; x++) {
                         for (let z = 0; z < 3; z++) {
-                            let chunk = [];
-                            let msize = size;
-                            for (let level = 0; level < octree_depth + 1; level++) {
-                                chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
-                                msize /= 2;
+                            if (!chunk_map.has([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(','))) {
+                                let chunk = new Chunk(x, 0, z, pixelsPerVoxel, octree_depth);
+                                chunk_map.set([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(','), chunk);
+                                pixels.push(chunk_map.get([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(',')));
                             }
-                            pixels.push(chunk_map.get([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(',')));
-                        }
-                    }
-
-                    for (let x = 0; x < 3; x++) {
-                        for (let z = 0; z < 3; z++) {
                             generate_chunk(chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1, gl, true, chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1);
                         }
                     }
@@ -272,7 +259,7 @@ function send_chunk(i, gl, x0, y0, z0, x1, y1, z1) {
             msize * pixelsPerVoxel, msize, msize, 0, srcFormat, srcType,
             pixels[i][c]);*/
         gl.texSubImage3D(gl.TEXTURE_3D, c, x0, y0, z0, Math.abs(x0 - x1) + 1, Math.abs(y0 - y1) + 1, Math.abs(z0 - z1) + 1, internalFormat, srcType,
-            pixels[i][c]);
+            pixels[i].data[c]);
         x0 = Math.floor(x0 / 2);
         y0 = Math.floor(y0 / 2);
         z0 = Math.floor(z0 / 2);
@@ -350,17 +337,11 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
     }
 
     if (build_new) {
-        
-        let chunk = [];
-        for (let lv = 0; lv < octree_depth + 1; lv++)
-            chunk.push(new Uint8Array(pixels[i][lv]));
+
+        let chunk = new Chunk(x, y, z, pixelsPerVoxel, octree_depth);
         chunk_map.set([x, y, z].join(','), chunk);
 
-        for (let lv = 0; lv < octree_depth + 1; lv++) {
-            chunk[lv].fill(0, 0, chunk[lv].length);
-        }
-
-        pixels[i] = chunk_map.get([x, y, z].join(','));
+        pixels[i] = chunk;
 
         x *= size;
         y *= size;
@@ -377,24 +358,14 @@ function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
 }
 
 function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denoiser_fragment) {
-    for (let x = 0; x < 3; x++) {
-        for (let z = 0; z < 3; z++) {
-            let chunk = [];
-            let msize = size;
-            for (let level = 0; level <= octree_depth; level++) {
-                chunk.push(new Uint8Array(msize * msize * msize * pixelsPerVoxel * 4));
-                msize /= 2;
-            }
-            chunk_map.set([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(','), chunk);
-            pixels.push(chunk_map.get([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(',')));
-        }
-    }
-
     const shaderProgram = new ShaderProgram(gl, vsSource, fsSource);
     initBuffers(gl);
 
     for (let x = 0; x < 3; x++) {
         for (let z = 0; z < 3; z++) {
+            let chunk = new Chunk(x, 0, z, pixelsPerVoxel, octree_depth);
+            chunk_map.set([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(','), chunk);
+            pixels.push(chunk_map.get([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(',')));
             generate_chunk(chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1, gl, false, 0, 0, 0);
         }
     }
@@ -416,14 +387,14 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
         textures.push(texture);
         gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
             size * pixelsPerVoxel, size, size, 0, srcFormat, srcType,
-            pixels[i][0]);
+            pixels[i].data[0]);
         gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
         gl.generateMipmap(gl.TEXTURE_3D);
         let msize = size / 2;
         for (let c = 1; c <= octree_depth; c++) {
             gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
                 msize * pixelsPerVoxel, msize, msize, 0, srcFormat, srcType,
-                pixels[i][c]);
+                pixels[i].data[c]);
             msize /= 2;
         }
         gl.bindTexture(gl.TEXTURE_3D, texture);
@@ -722,7 +693,7 @@ function drawScene(renderParams, time) {
                 const cz = Math.floor(cursor3D[2] / smallSize);
                 if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
                     let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                    parentVox = getElement(Math.floor(cursor3D[0] / 8) % size, Math.floor(cursor3D[1] / 8) % size, Math.floor(cursor3D[2] / 8) % size, chunkid, 0, size);
+                    parentVox = pixels[chunkid].getElement(Math.floor(cursor3D[0] / 8) % size, Math.floor(cursor3D[1] / 8) % size, Math.floor(cursor3D[2] / 8) % size, 0, size);
 
                     if (paint == 1 || paint == 3 || paint == 4) {
                         //place voxel
@@ -769,7 +740,7 @@ function drawScene(renderParams, time) {
                         let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
                         if (paint == 1 || paint == 3 || paint == 4) {
                             //place voxel
-                            if (getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[3] > 0) {
+                            if (pixels[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] > 0) {
                                 offset -= 0.1;
                             }
                             else
@@ -778,12 +749,12 @@ function drawScene(renderParams, time) {
                         else {
                             //delete voxel
                             if (paint == 5) {
-                                let element = getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size);
+                                let element = pixels[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size);
                                 pick = element[0];
                                 pickVariant = element[2];
                             }
 
-                            if (getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, chunkid, 0, size)[3] <= 0) {
+                            if (pixels[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] <= 0) {
                                 offset += 0.1;
                             }
                             else {
@@ -822,9 +793,9 @@ function drawScene(renderParams, time) {
                                         if (x < 3 * size && z < 3 * size && y < size && x >= 0 && z >= 0 && y >= 0) {
                                             let chunkid = Math.floor((x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
                                             if (paint == 3)
-                                                octree_set(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 255, chunkid);
+                                                pixels[chunkid].octree_set(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 255);
                                             else
-                                                octree_set(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 0, chunkid);
+                                                pixels[chunkid].octree_set(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 0);
                                             chunks2send.set(chunkid, 1);
                                         }
                                     }
@@ -852,7 +823,7 @@ function drawScene(renderParams, time) {
                                         if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
                                             if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
                                                 let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
-                                                octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0, chunkid);
+                                                pixels[chunkid].octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
                                                 chunks2send.set(chunkid, 1);
                                             }
                                         }
@@ -870,7 +841,7 @@ function drawScene(renderParams, time) {
                                 cursor3D[1] %= size;
                                 cursor3D[2] %= size;
                                 let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                                octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0, chunkid);
+                                pixels[chunkid].octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
                                 send_chunk(chunkid, gl, 0, 0, 0, size - 1, size - 1, size - 1);
                             }
                         }

@@ -253,4 +253,6 @@ class Material {
     get textures() {
         return this.#textures;
     }
-}
+};
+
+      
