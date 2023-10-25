@@ -24,7 +24,7 @@ struct Ray {
 };
 
 out vec4[3] outColor;
-uniform sampler3D u_textures[chunk_count];
+uniform sampler3D chunkTextures[chunk_count];
 uniform sampler3D u_palette;
 uniform sampler2D light_high;
 uniform sampler2D light_low;
@@ -102,31 +102,31 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element, float voxelS
 	level = max(level - 3.0f, 0.0f);
 
 	if (chunk == 0) {
-		fvoxel = textureLod(u_textures[0], fpos, level);
+		fvoxel = textureLod(chunkTextures[0], fpos, level);
 	}
 	else if (chunk == 1) {
-		fvoxel = textureLod(u_textures[1], fpos, level);
+		fvoxel = textureLod(chunkTextures[1], fpos, level);
 	}
 	else if (chunk == 2) {
-		fvoxel = textureLod(u_textures[2], fpos, level);
+		fvoxel = textureLod(chunkTextures[2], fpos, level);
 	}
 	else if (chunk == 3) {
-		fvoxel = textureLod(u_textures[3], fpos, level);
+		fvoxel = textureLod(chunkTextures[3], fpos, level);
 	}
 	else if (chunk == 4) {
-		fvoxel = textureLod(u_textures[4], fpos, level);
+		fvoxel = textureLod(chunkTextures[4], fpos, level);
 	}
 	else if (chunk == 5) {
-		fvoxel = textureLod(u_textures[5], fpos, level);
+		fvoxel = textureLod(chunkTextures[5], fpos, level);
 	}
 	else if (chunk == 6) {
-		fvoxel = textureLod(u_textures[6], fpos, level);
+		fvoxel = textureLod(chunkTextures[6], fpos, level);
 	}
 	else if (chunk == 7) {
-		fvoxel = textureLod(u_textures[7], fpos, level);
+		fvoxel = textureLod(chunkTextures[7], fpos, level);
 	}
 	else if (chunk == 8) {
-		fvoxel = textureLod(u_textures[8], fpos, level);
+		fvoxel = textureLod(chunkTextures[8], fpos, level);
 	}
 
 	mask.x = fvoxel.w;

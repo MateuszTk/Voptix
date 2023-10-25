@@ -1,4 +1,38 @@
 var gl;
+var worldParameter;
+var mouseX = 0, mouseY = 0;
+var pos = glMatrix.vec3.fromValues(0, 65, 0);
+const vec3_minus_one = glMatrix.vec3.fromValues(-1.0, -1.0, -1.0);
+var rotation = glMatrix.vec3.create();
+var cursor = glMatrix.vec3.create();
+var angle = glMatrix.vec3.create();
+
+var cursor3D = glMatrix.vec3.create();
+var paint = 0;
+var brush = { diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, roughness: 0, palette_id: 0, variant: 0, type: true };
+var subvoxel_paint = false;
+
+const pixelsPerVoxel = 1;
+const size = 128;
+const subSize = 8;
+const subOctreeDepth = 3;
+var pal_texture;
+var palette = [];
+const pal_size = 256;
+const pal_pix_cnt = 2;
+const pal_variants = 8;
+var mapManager;
+
+const octree_depth = 7;
+const chunk_size = ((1 - Math.pow(8, (octree_depth + 1))) / -7) * pixelsPerVoxel;
+
+var locked = false;
+var brush_lock = true;
+
+var prev_rotation = glMatrix.vec3.create();
+var prev_position = glMatrix.vec3.create();
+
+var deltaTime = 0;
 
 function main() {
     const canvas = document.querySelector("#glCanvas");
@@ -36,48 +70,6 @@ function main() {
     });
 
 }
-
-var worldParameter;
-var mouseX = 0, mouseY = 0;
-var pos = glMatrix.vec3.fromValues(0, 65, 0);
-var chunk_offset = glMatrix.vec3.fromValues(20, 0, 20);
-const vec3_minus_one = glMatrix.vec3.fromValues(-1.0, -1.0, -1.0);
-var rotation = glMatrix.vec3.create();
-var cursor = glMatrix.vec3.create();
-var angle = glMatrix.vec3.create();
-
-var cursor3D = glMatrix.vec3.create();
-var paint = 0;
-var brush = { diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, roughness: 0, palette_id: 0, variant: 0, type: true };
-var subvoxel_paint = false;
-
-const pixelsPerVoxel = 1;
-const size = 128;
-const subSize = 8;
-const subOctreeDepth = 3;
-var pixels = [];
-var textures = [];
-var pal_texture;
-var palette = [];
-const pal_size = 256;
-const pal_pix_cnt = 2;
-const pal_variants = 8;
-const chunk_map = new Map;
-
-var fb;
-var pp_fb;
-var den_fb;
-
-const octree_depth = 7;
-const chunk_size = ((1 - Math.pow(8, (octree_depth + 1))) / -7) * pixelsPerVoxel;
-
-var locked = false;
-var brush_lock = true;
-
-var prev_rotation = glMatrix.vec3.create();
-var prev_position = glMatrix.vec3.create();
-
-var deltaTime = 0;
 
 window.onload = main;
 
@@ -119,25 +111,10 @@ function resize() {
 }
 
 function save(name) {
-
-    //first 4 bytes are the header describing the following chunk info length 
-    let header = new Uint32Array(1 + 3 * chunk_map.size);
-    header[0] = chunk_map.size;
-
-    let chunk_no = 1;
-    let continuous_data = [header];
-    chunk_map.forEach((chunk, posi) => {
-        const coord = posi.split(',').map((e) => parseInt(e));
-        header[chunk_no] = coord[0];
-        header[chunk_no + 1] = coord[1];
-        header[chunk_no + 2] = coord[2];
-        chunk_no += 3;
-        continuous_data.push(chunk.data[0]);
-    });
+    let dataBlob = mapManager.save();
 
     var a = document.createElement('a');
-    let blob = new Blob(continuous_data);
-    a.href = URL.createObjectURL(blob);
+    a.href = URL.createObjectURL(dataBlob);
     a.download = name + ".vx";
     document.body.appendChild(a);
     a.click();
@@ -182,43 +159,8 @@ function loadFile() {
             reader.onload = readerEvent => {
                 let continuous_data = new Uint8Array(readerEvent.target.result);
                 if (f_extension == 'vx') {
-                    //delete all old chunks
-                    chunk_map.clear();
-                    glMatrix.vec3.set(chunk_offset, 20, 0, 20);
                     pos = glMatrix.vec3.fromValues(0, 65, 0);
-                    pixels.splice(0, pixels.length);
-
-                    //load new chunks
-                    let header_len = new Uint32Array(continuous_data.buffer, 0, 1);
-                    let header = new Uint32Array(continuous_data.buffer, 4, header_len * 3);
-                    console.log(header);
-
-                    let offset = 4 + header_len * 4 * 3;
-                    for (let c = 0; c < header_len; c++) {
-                        let chunk = new Chunk(0, 0, 0, pixelsPerVoxel, octree_depth);
-
-                        for (let vx = 0; vx < size; vx++) {
-                            for (let vy = 0; vy < size; vy++) {
-                                for (let vz = 0; vz < size; vz++) {
-                                    let id = (vx + (vy + vz * size) * size) * 4;
-                                    chunk.octree_set(vx, vy, vz, continuous_data[offset + id], 255, continuous_data[offset + id + 2], continuous_data[offset + id + 3]);
-                                }
-                            }
-                        }
-                        offset += size * size * size * 4;
-                        chunk_map.set([header[c * 3 + 0], header[c * 3 + 1], header[c * 3 + 2]].join(','), chunk);
-                    }
-
-                    for (let x = 0; x < 3; x++) {
-                        for (let z = 0; z < 3; z++) {
-                            if (!chunk_map.has([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(','))) {
-                                let chunk = new Chunk(x, 0, z, pixelsPerVoxel, octree_depth);
-                                chunk_map.set([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(','), chunk);
-                                pixels.push(chunk_map.get([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(',')));
-                            }
-                            generate_chunk(chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1, gl, true, chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1);
-                        }
-                    }
+                    mapManager.load(continuous_data);
                 }
                 else if (f_extension == 'vp') {
                     let pal_header = new Uint32Array(continuous_data.buffer, 0, 4);
@@ -245,29 +187,6 @@ function loadFile() {
         }
     }
     input.click();
-}
-
-function send_chunk(i, gl, x0, y0, z0, x1, y1, z1) {
-    const internalFormat = gl.RGBA;
-    const srcFormat = gl.RGBA;
-    const srcType = gl.UNSIGNED_BYTE;
-    gl.activeTexture(gl.TEXTURE0 + i);
-    gl.bindTexture(gl.TEXTURE_3D, textures[i]);
-    let msize = size;
-    for (let c = 0; c < octree_depth + 1; c++) {
-       /* gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
-            msize * pixelsPerVoxel, msize, msize, 0, srcFormat, srcType,
-            pixels[i][c]);*/
-        gl.texSubImage3D(gl.TEXTURE_3D, c, x0, y0, z0, Math.abs(x0 - x1) + 1, Math.abs(y0 - y1) + 1, Math.abs(z0 - z1) + 1, internalFormat, srcType,
-            pixels[i].data[c]);
-        x0 = Math.floor(x0 / 2);
-        y0 = Math.floor(y0 / 2);
-        z0 = Math.floor(z0 / 2);
-        x1 = Math.floor(x1 / 2);
-        y1 = Math.floor(y1 / 2);
-        z1 = Math.floor(z1 / 2);
-        msize /= 2;
-    }
 }
 
 function updatePalette() {
@@ -317,95 +236,18 @@ function paste() {
     }
 }
 
-
-function generate_chunk(x, y, z, gl, send, sendx, sendy, sendz) {
-    console.log("x" + x + " y" + y + " z" + z);
-    let timer_start = Date.now();
-   
-    let build_new = true;
-    let i = (x % 3) + (z % 3) * 3;
-    if (send) {
-        //if chunk in this position was generated before, use it
-        const svkey = [x, y, z];
-        const sskey = svkey.join(',');
-        if (chunk_map.has(sskey)) {
-
-            pixels[i] = chunk_map.get(sskey);
-            console.log("loaded");
-            build_new = false;
-        }
-    }
-
-    if (build_new) {
-
-        let chunk = new Chunk(x, y, z, pixelsPerVoxel, octree_depth);
-        chunk_map.set([x, y, z].join(','), chunk);
-
-        pixels[i] = chunk;
-
-        x *= size;
-        y *= size;
-        z *= size;
-
-        chunkFunction(x, y, z, size, i);
-    }
-    if (send) {
-        i = (sendx % 3) + (sendz % 3) * 3;
-        send_chunk(i, gl, 0, 0, 0, size - 1, size - 1, size - 1);
-    }
-
-    console.log("Took " + (Date.now() - timer_start) + "ms");
-}
-
 function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denoiser_fragment) {
     const shaderProgram = new ShaderProgram(gl, vsSource, fsSource);
     initBuffers(gl);
 
-    for (let x = 0; x < 3; x++) {
-        for (let z = 0; z < 3; z++) {
-            let chunk = new Chunk(x, 0, z, pixelsPerVoxel, octree_depth);
-            chunk_map.set([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(','), chunk);
-            pixels.push(chunk_map.get([x + chunk_offset[0] - 1, 0, z + chunk_offset[2] - 1].join(',')));
-            generate_chunk(chunk_offset[0] + x - 1, 0, chunk_offset[2] + z - 1, gl, false, 0, 0, 0);
-        }
-    }
-    
-    var textureLoc = gl.getUniformLocation(shaderProgram.program, "u_textures[0]");
-    // Tell the shader to use texture units 0 to pixel.length
-    let tex_uni = [0];
-    for (let j = 1; j < pixels.length; j++)
-        tex_uni.push(j);
-    gl.uniform1iv(textureLoc, tex_uni);
-
-    const internalFormat = gl.RGBA;
-    const srcFormat = gl.RGBA;
-    const srcType = gl.UNSIGNED_BYTE;
-    for (let i = 0; i < pixels.length; i++) {
-        gl.activeTexture(gl.TEXTURE0 + i);
-        const texture = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_3D, texture);
-        textures.push(texture);
-        gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
-            size * pixelsPerVoxel, size, size, 0, srcFormat, srcType,
-            pixels[i].data[0]);
-        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.generateMipmap(gl.TEXTURE_3D);
-        let msize = size / 2;
-        for (let c = 1; c <= octree_depth; c++) {
-            gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
-                msize * pixelsPerVoxel, msize, msize, 0, srcFormat, srcType,
-                pixels[i].data[c]);
-            msize /= 2;
-        }
-        gl.bindTexture(gl.TEXTURE_3D, texture);
-    }
+    let chunkOffset = glMatrix.vec3.fromValues(20, 0, 20);
+    mapManager = new MapManager(chunkOffset, gl, shaderProgram, size, 'chunk_map');
 
     //voxel palette
     var textureLocPal = gl.getUniformLocation(shaderProgram.program, "u_palette");
     //pixels.length + 1, because we want to use texture unit after chunk data (pixels.length) and previous frame data (+1)
-    //TODO - pixels.length is probably equal to 10 which means I use 3 more texture units over count guaranteed by specification
-    gl.uniform1i(textureLocPal, pixels.length + 2);
-    gl.activeTexture(gl.TEXTURE0 + pixels.length + 2);
+    gl.uniform1i(textureLocPal, mapManager.visibleChunks.length + 2);
+    gl.activeTexture(gl.TEXTURE0 + mapManager.visibleChunks.length + 2);
     pal_texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_3D, pal_texture);
 
@@ -418,6 +260,9 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
         msize /= 2;
     }
 
+    const internalFormat = gl.RGBA;
+    const srcFormat = gl.RGBA;
+    const srcType = gl.UNSIGNED_BYTE;
     gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
         8 * pal_size, 8 * pal_pix_cnt, 8 * pal_variants, 0, srcFormat, srcType,
         palette[0]);
@@ -444,7 +289,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     gl.enableVertexAttribArray(coord);
 
 
-    fb = new Framebuffer(gl, canvas.width, canvas.height, 3);
+    let mainFb = new Framebuffer(gl, canvas.width, canvas.height, 3);
 
     //scene buffer
     const sceneBuffer = new UniformBuffer(gl, 4 * 13 + 4, 0);
@@ -456,39 +301,39 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     const canvasShaderProgram = new ShaderProgram(gl, vsSource, pp_fragment);
     initBuffers(gl);
     let canvasMat = new Material(gl, canvasShaderProgram);
-    canvasMat.addTexture("color0", fb.textures[1]);
-    canvasMat.addTexture("color1", fb.textures[2]);
+    canvasMat.addTexture("color0", mainFb.textures[1]);
+    canvasMat.addTexture("color1", mainFb.textures[2]);
     canvasMat.addVec2f("screen_size", canvas.width, canvas.height);
 
     //bind otuput for pp and last frame
-    pp_fb = new Framebuffer(gl, canvas.width, canvas.height, 2);
+    let postpFb = new Framebuffer(gl, canvas.width, canvas.height, 2);
 
     // ----feedback loop----
     shaderProgram.use();
 
-    let mainMat = new Material(gl, shaderProgram, pixels.length);
-    mainMat.addTexture("light_high", pp_fb.textures[0]);
-    mainMat.addTexture("light_low", pp_fb.textures[1]);
+    let mainMat = new Material(gl, shaderProgram, mapManager.visibleChunks.length);
+    mainMat.addTexture("light_high", postpFb.textures[0]);
+    mainMat.addTexture("light_low", postpFb.textures[1]);
 
     //----shader program for 2nd pass----//
     const denoiserShaderProgram = new ShaderProgram(gl, vsSource, denoiser_fragment);
     initBuffers(gl);
     let denMat = new Material(gl, denoiserShaderProgram);
-    denMat.addTexture("color1", fb.textures[2]);
-    denMat.addTexture("color2", pp_fb.textures[1]);
+    denMat.addTexture("color1", mainFb.textures[2]);
+    denMat.addTexture("color2", postpFb.textures[1]);
     denMat.addVec2f("screen_size", canvas.width, canvas.height);
 
     //output
-    den_fb = new Framebuffer(gl, canvas.width, canvas.height, 1);
+    let denFb = new Framebuffer(gl, canvas.width, canvas.height, 1);
 
     //----shader program for display and 3rd pass----//
     const dispShaderProgram = new ShaderProgram(gl, vsSource, disp_fragment);
     initBuffers(gl);
 
     let dispMat = new Material(gl, dispShaderProgram);
-    dispMat.addTexture("color0", fb.textures[0]);
-    dispMat.addTexture("color1", fb.textures[2]);
-    dispMat.addTexture("color2", den_fb.textures[0]);
+    dispMat.addTexture("color0", mainFb.textures[0]);
+    dispMat.addTexture("color1", mainFb.textures[2]);
+    dispMat.addTexture("color2", denFb.textures[0]);
     dispMat.addVec2f("screen_size", canvas.width, canvas.height);
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -506,7 +351,11 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
         dispMat: dispMat,
         denMat: denMat,
         canvasMat: canvasMat,
-        mainMat: mainMat
+        mainMat: mainMat,
+        mapManager: mapManager,
+        mainFb: mainFb,
+        postpFb: postpFb,
+        denFb: denFb
     };
 
     //start render loop
@@ -529,7 +378,7 @@ function addToPalette(r, g, b, s, e, ro, slot) {
     updatePalette();
 }
 
-function updateCamera(gl) {
+function updateCamera(mapManager) {
     var x = mouseX, y = mouseY;
     var delta_x = +1.0 * (cursor[0] - x) * sensivity;
     var delta_y = -1.0 * (cursor[1] - y) * sensivity;
@@ -556,40 +405,12 @@ function updateCamera(gl) {
     direction[1] = -Math.sin(y);
     direction[2] = Math.sin(x) * Math.cos(y);
 
-    if (pos[0] > 0.5 * size) {
-        pos[0] -= size;
-        for (let z = 0; z < 3; z++)
-            generate_chunk(chunk_offset[0] + 2, chunk_offset[1], chunk_offset[2] + z - 1, gl, true, chunk_offset[0] - 1, chunk_offset[1], chunk_offset[2] + z - 1);
-        chunk_offset[0]++;
-    }
-
-    if (pos[2] > 0.5 * size) {
-        pos[2] -= size;
-        for (let x = 0; x < 3; x++)
-            generate_chunk(chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] + 2, gl, true, chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] - 1);
-        chunk_offset[2]++;
-    }
-
-    if (pos[0] < - 0.5 * size) {
-        pos[0] += size;
-        for (let z = 0; z < 3; z++)
-            generate_chunk(chunk_offset[0] - 2, chunk_offset[1], chunk_offset[2] + z - 1, gl, true, chunk_offset[0] + 1, chunk_offset[1], chunk_offset[2] + z - 1);
-        chunk_offset[0]--;
-    }
-
-    if (pos[2] < - 0.5 * size) {
-        pos[2] += size;
-        for (let x = 0; x < 3; x++)
-            generate_chunk(chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] - 2, gl, true, chunk_offset[0] + x - 1, chunk_offset[1], chunk_offset[2] + 1);
-        chunk_offset[2]--;
-    }
+    mapManager.setViewPosition(pos);
 }
+
 var wait = 0;
 var fps_time = 0;
 var pixel = new Uint8Array(4);
-var chunk_id_map = [0, 1, 2,
-    3, 4, 5,
-    6, 7, 8];
 
 var fill = vec3_minus_one;
 
@@ -599,25 +420,13 @@ setInterval(function () {
     animationTime = (animationTime + 1) % 8;
 }, 250);
 
-/*var resizeb = false;
-function resizeBuffers(canvas) {
-    if (resizeb) {
-        canvas.width = 800;
-        for (let z = 0; z < fb_textures.length; z++) {
-            gl.bindTexture(gl.TEXTURE_2D, fb_textures[z]);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-        }
-        resize = false;
-    }
-}*/
-
 function drawScene(renderParams, time) {
-    updateCamera(gl);
-    //resizeBuffers(canvas);
+    updateCamera(renderParams.mapManager);
+
     const scene = [
         (pos[0] + 1.5 * size) * subSize, (pos[1]) * subSize, (pos[2] + 1.5 * size) * subSize,0,
         rotation[0], rotation[1], animationTime,0,
-        40 - chunk_offset[0], chunk_offset[1], 40 - chunk_offset[2],0,
+        40 - renderParams.mapManager.chunkOffset[0], renderParams.mapManager.chunkOffset[1], 40 - renderParams.mapManager.chunkOffset[2],0,
         renderParams.canvas.width, renderParams.canvas.height, frame,0,
         1.2, 0.01, 255.0 * 8.0, 0,//projection (fov near far)
         (prev_position[0] + 1.5 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + 1.5 * size) * subSize,0,
@@ -636,18 +445,12 @@ function drawScene(renderParams, time) {
     prev_position = glMatrix.vec3.clone(pos);
 
     renderParams.shaderProgram.use();
-    fb.bind();
+    renderParams.mainFb.bind();
     renderParams.mainMat.use();
 
     renderParams.sceneBuffer.update(scene, 0);
 
-    for (let x = 0; x < 3; x++) {
-        for (let z = 0; z < 3; z++) {
-            chunk_id_map[x + z * 3] = (x + chunk_offset[0] + 2) % 3 + ((z + chunk_offset[2] + 2) % 3) * 3;
-        }
-    }
-    var map_location = gl.getUniformLocation(renderParams.shaderProgram.program, 'chunk_map');
-    gl.uniform3iv(map_location, chunk_id_map);
+    renderParams.mapManager.updateIdMapUniform();
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -661,19 +464,19 @@ function drawScene(renderParams, time) {
 
     //post-processing
     renderParams.canvasShaderProgram.use(true);
-    pp_fb.bind();
+    renderParams.postpFb.bind();
     renderParams.canvasMat.use();
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     //second pass - denoiser
     renderParams.denoiserShaderProgram.use(true);
-    den_fb.bind();
+    renderParams.denFb.bind();
     renderParams.denMat.use();
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     //draw to display
     renderParams.dispShaderProgram.use(true);
-    den_fb.unbind();
+    renderParams.denFb.unbind();
     renderParams.dispMat.use();
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
@@ -692,8 +495,8 @@ function drawScene(renderParams, time) {
                 const cx = Math.floor(cursor3D[0] / smallSize);
                 const cz = Math.floor(cursor3D[2] / smallSize);
                 if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
-                    let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                    parentVox = pixels[chunkid].getElement(Math.floor(cursor3D[0] / 8) % size, Math.floor(cursor3D[1] / 8) % size, Math.floor(cursor3D[2] / 8) % size, 0, size);
+                    let chunkid = (cx + renderParams.mapManager.chunkOffset[0] + 2) % 3 + ((cz + renderParams.mapManager.chunkOffset[2] + 2) % 3) * 3;
+                    parentVox = renderParams.mapManager.visibleChunks[chunkid].getElement(Math.floor(cursor3D[0] / 8) % size, Math.floor(cursor3D[1] / 8) % size, Math.floor(cursor3D[2] / 8) % size, 0, size);
 
                     if (paint == 1 || paint == 3 || paint == 4) {
                         //place voxel
@@ -737,10 +540,10 @@ function drawScene(renderParams, time) {
                     const cx = Math.floor(cursor3D[0] / size);
                     const cz = Math.floor(cursor3D[2] / size);
                     if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
-                        let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
+                        let chunkid = (cx + renderParams.mapManager.chunkOffset[0] + 2) % 3 + ((cz + renderParams.mapManager.chunkOffset[2] + 2) % 3) * 3;
                         if (paint == 1 || paint == 3 || paint == 4) {
                             //place voxel
-                            if (pixels[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] > 0) {
+                            if (renderParams.mapManager.visibleChunks[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] > 0) {
                                 offset -= 0.1;
                             }
                             else
@@ -749,12 +552,12 @@ function drawScene(renderParams, time) {
                         else {
                             //delete voxel
                             if (paint == 5) {
-                                let element = pixels[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size);
+                                let element = renderParams.mapManager.visibleChunks[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size);
                                 pick = element[0];
                                 pickVariant = element[2];
                             }
 
-                            if (pixels[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] <= 0) {
+                            if (renderParams.mapManager.visibleChunks[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] <= 0) {
                                 offset += 0.1;
                             }
                             else {
@@ -791,17 +594,19 @@ function drawScene(renderParams, time) {
                                 for (let y = ystart; y <= Math.max(fill[1], cursor3D[1]); y++) {
                                     for (let z = zstart; z <= Math.max(fill[2], cursor3D[2]); z++) {
                                         if (x < 3 * size && z < 3 * size && y < size && x >= 0 && z >= 0 && y >= 0) {
-                                            let chunkid = Math.floor((x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
+                                            let chunkid = Math.floor((x + (renderParams.mapManager.chunkOffset[0] + 2) * size) / size) % 3 + Math.floor(((z + (renderParams.mapManager.chunkOffset[2] + 2) * size) / size) % 3) * 3;
                                             if (paint == 3)
-                                                pixels[chunkid].octree_set(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 255);
+                                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 255);
                                             else
-                                                pixels[chunkid].octree_set(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 0);
+                                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 0);
                                             chunks2send.set(chunkid, 1);
                                         }
                                     }
                                 }
                             }
-                            chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl, 0, 0, 0, size - 1, size - 1, size - 1); console.log(chunk) });
+                            chunks2send.forEach((val, chunk) => {
+                                renderParams.mapManager.sendChunk(chunk, 0, 0, 0, size - 1, size - 1, size - 1); console.log(chunk)
+                            });
 
                             fill = vec3_minus_one;
                             paint = 0;
@@ -822,15 +627,17 @@ function drawScene(renderParams, time) {
                                     for (let z = -r; z < r; z++) {
                                         if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
                                             if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
-                                                let chunkid = Math.floor((cursor3D[0] + x + (chunk_offset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (chunk_offset[2] + 2) * size) / size) % 3) * 3;
-                                                pixels[chunkid].octree_set(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
+                                                let chunkid = Math.floor((cursor3D[0] + x + (renderParams.mapManager.chunkOffset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (renderParams.mapManager.chunkOffset[2] + 2) * size) / size) % 3) * 3;
+                                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
                                                 chunks2send.set(chunkid, 1);
                                             }
                                         }
                                     }
                                 }
                             }
-                            chunks2send.forEach((val, chunk) => { send_chunk(chunk, gl, 0, 0, 0, size - 1, size - 1, size - 1); console.log(chunk) });
+                            chunks2send.forEach((val, chunk) => {
+                                renderParams.mapManager.sendChunk(chunk, 0, 0, 0, size - 1, size - 1, size - 1); console.log(chunk)
+                            });
                         }
                         else {
                             const cx = Math.floor(cursor3D[0] / size);
@@ -840,9 +647,9 @@ function drawScene(renderParams, time) {
                                 cursor3D[0] %= size;
                                 cursor3D[1] %= size;
                                 cursor3D[2] %= size;
-                                let chunkid = (cx + chunk_offset[0] + 2) % 3 + ((cz + chunk_offset[2] + 2) % 3) * 3;
-                                pixels[chunkid].octree_set(cursor3D[0], cursor3D[1], cursor3D[2], brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
-                                send_chunk(chunkid, gl, 0, 0, 0, size - 1, size - 1, size - 1);
+                                let chunkid = (cx + renderParams.mapManager.chunkOffset[0] + 2) % 3 + ((cz + renderParams.mapManager.chunkOffset[2] + 2) % 3) * 3;
+                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(cursor3D[0], cursor3D[1], cursor3D[2], brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
+                                renderParams.mapManager.sendChunk(chunkid, 0, 0, 0, size - 1, size - 1, size - 1);
                             }
                         }
                     }
