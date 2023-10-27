@@ -309,10 +309,11 @@ class MapManager {
 
     #gl;
     #shaderProgram;
-    #chunkTextures = [];
+    #chunkTexture;
     #chunkSize;
     #chunkOctreeDepth;
     #idMapUni;
+    #chunkEdgeCount = 3;
 
     constructor(chunkOffset, gl, shaderProgram, octreeDepth, idMapUniName) {
         this.#chunkOffset = chunkOffset;
@@ -322,54 +323,53 @@ class MapManager {
         this.#chunkOctreeDepth = octreeDepth;
         this.#idMapUni = this.#gl.getUniformLocation(this.#shaderProgram.program, idMapUniName);
 
-        for (let x = 0; x < 3; x++) {
-            for (let z = 0; z < 3; z++) {
-                let chunk = new Chunk(x, 0, z, pixelsPerVoxel, this.#chunkOctreeDepth);
-                this.#chunkMap.set([x + this.#chunkOffset[0] - 1, 0, z + this.#chunkOffset[2] - 1].join(','), chunk);
-                this.#visibleChunks.push(chunk);
-                this.generateChunk(this.#chunkOffset[0] + x - 1, 0, this.#chunkOffset[2] + z - 1, false, 0, 0, 0);
+        let halfEdge = Math.floor(this.#chunkEdgeCount / 2);
+        for (let x = 0; x < this.#chunkEdgeCount; x++) {
+            for (let z = 0; z < this.#chunkEdgeCount; z++) {
+                this.generateChunk(this.#chunkOffset[0] + x - halfEdge, 0, this.#chunkOffset[2] + z - halfEdge, false, 0, 0, 0);       
             }
         }
 
-        var textureLoc = this.#gl.getUniformLocation(shaderProgram.program, "chunkTextures[0]");
+        var textureLoc = this.#gl.getUniformLocation(shaderProgram.program, "megaChunkTexture");
 
         // Tell the shader to use texture units 0 to pixel.length
-        let tex_uni = [0];
-        for (let j = 1; j < this.#visibleChunks.length; j++)
-            tex_uni.push(j);
-        this.#gl.uniform1iv(textureLoc, tex_uni);
+        this.#gl.uniform1i(textureLoc, 0);
 
         const internalFormat = this.#gl.RGBA;
         const srcFormat = this.#gl.RGBA;
         const srcType = this.#gl.UNSIGNED_BYTE;
-        for (let i = 0; i < this.#visibleChunks.length; i++) {
-            this.#gl.activeTexture(this.#gl.TEXTURE0 + i);
-            const texture = this.#gl.createTexture();
-            this.#gl.bindTexture(this.#gl.TEXTURE_3D, texture);
-            this.#chunkTextures.push(texture);
+        this.#gl.activeTexture(this.#gl.TEXTURE0);
 
-            this.#gl.texImage3D(this.#gl.TEXTURE_3D, 0, internalFormat,
-                this.#chunkSize * pixelsPerVoxel, this.#chunkSize, this.#chunkSize, 0, srcFormat, srcType,
-                this.#visibleChunks[i].data[0]);
+        this.#chunkTexture = this.#gl.createTexture();
+        this.#gl.bindTexture(this.#gl.TEXTURE_3D, this.#chunkTexture);
 
-            this.#gl.texParameteri(this.#gl.TEXTURE_3D, this.#gl.TEXTURE_MAG_FILTER, this.#gl.NEAREST);
+        let zeroData = new Uint8Array(this.#chunkSize * this.#chunkSize * this.#chunkSize * 4 * this.#chunkEdgeCount * this.#chunkEdgeCount);
+        this.#gl.texImage3D(this.#gl.TEXTURE_3D, 0, internalFormat,
+            this.#chunkSize * pixelsPerVoxel * this.#chunkEdgeCount, this.#chunkSize, this.#chunkSize * this.#chunkEdgeCount,
+            0, srcFormat, srcType, zeroData);
 
-            this.#gl.generateMipmap(this.#gl.TEXTURE_3D);
-            let msize = this.#chunkSize / 2;
-            for (let c = 1; c <= this.#chunkOctreeDepth; c++) {
-                this.#gl.texImage3D(this.#gl.TEXTURE_3D, c, internalFormat,
-                    msize * pixelsPerVoxel, msize, msize, 0, srcFormat, srcType,
-                    this.#visibleChunks[i].data[c]);
-                msize /= 2;
-            }
+        this.#gl.texParameteri(this.#gl.TEXTURE_3D, this.#gl.TEXTURE_MAG_FILTER, this.#gl.NEAREST);
+
+        this.#gl.generateMipmap(this.#gl.TEXTURE_3D);
+
+        for (let ic = 0; ic < this.#visibleChunks.length; ic++) {
+            this.sendChunk(ic, 0, 0, 0, this.#chunkSize - 1, this.#chunkSize - 1, this.#chunkSize - 1);
         }
     }
 
     sendChunk(i, x0, y0, z0, x1, y1, z1) {
+        x0 += (i % this.#chunkEdgeCount) * this.#chunkSize;
+        y0 += Math.floor(i / (this.#chunkEdgeCount * this.#chunkEdgeCount)) * this.#chunkSize;
+        z0 += Math.floor(i / this.#chunkEdgeCount) % this.#chunkEdgeCount * this.#chunkSize;
+
+        x1 += (i % this.#chunkEdgeCount) * this.#chunkSize;
+        y1 += Math.floor(i / (this.#chunkEdgeCount * this.#chunkEdgeCount)) * this.#chunkSize;
+        z1 += Math.floor(i / this.#chunkEdgeCount) % this.#chunkEdgeCount * this.#chunkSize;
+
         const internalFormat = gl.RGBA;
         const srcType = gl.UNSIGNED_BYTE;
-        gl.activeTexture(gl.TEXTURE0 + i);
-        gl.bindTexture(gl.TEXTURE_3D, this.#chunkTextures[i]);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_3D, this.#chunkTexture);
         let msize = this.#chunkSize;
         for (let c = 0; c < this.#chunkOctreeDepth + 1; c++) {
             gl.texSubImage3D(gl.TEXTURE_3D, c, x0, y0, z0, Math.abs(x0 - x1) + 1, Math.abs(y0 - y1) + 1, Math.abs(z0 - z1) + 1, internalFormat, srcType,
@@ -389,7 +389,7 @@ class MapManager {
         let timer_start = Date.now();
 
         let build_new = true;
-        let i = (x % 3) + (z % 3) * 3;
+        let i = (x % this.#chunkEdgeCount) + (z % this.#chunkEdgeCount) * this.#chunkEdgeCount;
         if (send) {
             //if chunk in this position was generated before, use it
             const svkey = [x, y, z];
@@ -416,7 +416,7 @@ class MapManager {
             chunkFunction(x, y, z, this.#chunkSize, i, this);
         }
         if (send) {
-            i = (sendx % 3) + (sendz % 3) * 3;
+            i = (sendx % this.#chunkEdgeCount) + (sendz % this.#chunkEdgeCount) * this.#chunkEdgeCount;
             this.sendChunk(i, 0, 0, 0, this.#chunkSize - 1, this.#chunkSize - 1, this.#chunkSize - 1);
         }
 
@@ -424,40 +424,44 @@ class MapManager {
     }
 
     setViewPosition(vPos) {
+        let edgeOffset = (this.#chunkEdgeCount - 1);
+        let halfEdge = Math.floor(this.#chunkEdgeCount / 2);
         if (vPos[0] > 0.5 * this.#chunkSize) {
             vPos[0] -= this.#chunkSize;
-            for (let z = 0; z < 3; z++)
-                this.generateChunk(this.#chunkOffset[0] + 2, this.#chunkOffset[1], this.#chunkOffset[2] + z - 1, true, this.#chunkOffset[0] - 1, this.#chunkOffset[1], this.#chunkOffset[2] + z - 1);
+            for (let z = 0; z < this.#chunkEdgeCount; z++)
+                this.generateChunk(this.#chunkOffset[0] + edgeOffset, this.#chunkOffset[1], this.#chunkOffset[2] + z - halfEdge, true, this.#chunkOffset[0] - halfEdge, this.#chunkOffset[1], this.#chunkOffset[2] + z - halfEdge);
             this.#chunkOffset[0]++;
         }
 
         if (vPos[2] > 0.5 * this.#chunkSize) {
             vPos[2] -= this.#chunkSize;
-            for (let x = 0; x < 3; x++)
-                this.generateChunk(this.#chunkOffset[0] + x - 1, this.#chunkOffset[1], this.#chunkOffset[2] + 2, true, this.#chunkOffset[0] + x - 1, this.#chunkOffset[1], this.#chunkOffset[2] - 1);
+            for (let x = 0; x < this.#chunkEdgeCount; x++)
+                this.generateChunk(this.#chunkOffset[0] + x - halfEdge, this.#chunkOffset[1], this.#chunkOffset[2] + edgeOffset, true, this.#chunkOffset[0] + x - halfEdge, this.#chunkOffset[1], this.#chunkOffset[2] - halfEdge);
             this.#chunkOffset[2]++;
         }
 
         if (vPos[0] < - 0.5 * this.#chunkSize) {
             vPos[0] += this.#chunkSize;
-            for (let z = 0; z < 3; z++)
-                this.generateChunk(this.#chunkOffset[0] - 2, this.#chunkOffset[1], this.#chunkOffset[2] + z - 1, true, this.#chunkOffset[0] + 1, this.#chunkOffset[1], this.#chunkOffset[2] + z - 1);
+            for (let z = 0; z < this.#chunkEdgeCount; z++)
+                this.generateChunk(this.#chunkOffset[0] - edgeOffset, this.#chunkOffset[1], this.#chunkOffset[2] + z - halfEdge, true, this.#chunkOffset[0] + halfEdge, this.#chunkOffset[1], this.#chunkOffset[2] + z - halfEdge);
             this.#chunkOffset[0]--;
         }
 
         if (vPos[2] < - 0.5 * this.#chunkSize) {
             vPos[2] += this.#chunkSize;
-            for (let x = 0; x < 3; x++)
-                this.generateChunk(this.#chunkOffset[0] + x - 1, this.#chunkOffset[1], this.#chunkOffset[2] - 2, true, this.#chunkOffset[0] + x - 1, this.#chunkOffset[1], this.#chunkOffset[2] + 1);
+            for (let x = 0; x < this.#chunkEdgeCount; x++)
+                this.generateChunk(this.#chunkOffset[0] + x - halfEdge, this.#chunkOffset[1], this.#chunkOffset[2] - edgeOffset, true, this.#chunkOffset[0] + x - halfEdge, this.#chunkOffset[1], this.#chunkOffset[2] + halfEdge);
             this.#chunkOffset[2]--;
         }
     }
 
     updateIdMapUniform() {
-        let chunkIdMap = new Int32Array(9);
-        for (let x = 0; x < 3; x++) {
-            for (let z = 0; z < 3; z++) {
-                chunkIdMap[x + z * 3] = (x + this.#chunkOffset[0] + 2) % 3 + ((z + this.#chunkOffset[2] + 2) % 3) * 3;
+        let chunkIdMap = new Int32Array(this.#chunkEdgeCount * this.#chunkEdgeCount * 3);
+        for (let x = 0; x < this.#chunkEdgeCount; x++) {
+            for (let z = 0; z < this.#chunkEdgeCount; z++) {
+                chunkIdMap[(x + z * this.#chunkEdgeCount) * 3 + 0] = (x + this.#chunkOffset[0] + (Math.floor(this.#chunkEdgeCount / 2) + 1)) % this.#chunkEdgeCount;
+                chunkIdMap[(x + z * this.#chunkEdgeCount) * 3 + 1] = 0;
+                chunkIdMap[(x + z * this.#chunkEdgeCount) * 3 + 2] = (z + this.#chunkOffset[2] + (Math.floor(this.#chunkEdgeCount / 2) + 1)) % this.#chunkEdgeCount;
             }
         }
 
@@ -537,5 +541,9 @@ class MapManager {
 
     set chunkOffset(chunkOffset) {
         this.#chunkOffset = chunkOffset;
+    }
+
+    get chunkEdgeCount() {
+        return this.#chunkEdgeCount;
     }
 };

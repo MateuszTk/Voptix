@@ -3,20 +3,11 @@
 precision highp float;
 precision highp sampler3D;
 
-// size of single octree leaf
-#define VOXEL_SIZE 2
-
-// channel offsets
-#define RED 0
-#define GREEN 1
-#define BLUE 2
-#define ALPHA 3
-
 //#define LOD
 //#define DEBUG
 
 const float chunk_size = 128.0f * 8.0f;
-const int chunk_count = 9;
+const int chunk_edge_count = 3;
 
 struct Ray {
 	vec3 orig;
@@ -24,11 +15,11 @@ struct Ray {
 };
 
 out vec4[3] outColor;
-uniform sampler3D chunkTextures[chunk_count];
+uniform sampler3D megaChunkTexture;
 uniform sampler3D paletteTexture;
 uniform sampler2D light_high;
 uniform sampler2D light_low;
-uniform ivec3[3] chunk_map;
+uniform ivec3[chunk_edge_count * chunk_edge_count] chunk_map;
 uniform Scene{
 	vec4 camera_origin;
 	vec4 camera_direction;
@@ -94,40 +85,17 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element, float voxelS
 	vec3 ofpos = fpos;
 	float olevel = level;
 
+	ivec3 chunkPos = ivec3(fpos / chunk_size);
+	ivec3 id = chunk_map[chunk_edge_count * chunkPos.z + chunkPos.x];
 	fpos /= chunk_size;
-	ivec3 chunkPos = ivec3(fpos);
-	int chunk = chunk_map[chunkPos.z][chunkPos.x];
+	fpos -= vec3(chunkPos);	
+	fpos += vec3(id);
+	fpos /= vec3(chunk_edge_count, 1.0f, chunk_edge_count);
 
 	//3 lowest levels are subvoxels
 	level = max(level - 3.0f, 0.0f);
 
-	if (chunk == 0) {
-		fvoxel = textureLod(chunkTextures[0], fpos, level);
-	}
-	else if (chunk == 1) {
-		fvoxel = textureLod(chunkTextures[1], fpos, level);
-	}
-	else if (chunk == 2) {
-		fvoxel = textureLod(chunkTextures[2], fpos, level);
-	}
-	else if (chunk == 3) {
-		fvoxel = textureLod(chunkTextures[3], fpos, level);
-	}
-	else if (chunk == 4) {
-		fvoxel = textureLod(chunkTextures[4], fpos, level);
-	}
-	else if (chunk == 5) {
-		fvoxel = textureLod(chunkTextures[5], fpos, level);
-	}
-	else if (chunk == 6) {
-		fvoxel = textureLod(chunkTextures[6], fpos, level);
-	}
-	else if (chunk == 7) {
-		fvoxel = textureLod(chunkTextures[7], fpos, level);
-	}
-	else if (chunk == 8) {
-		fvoxel = textureLod(chunkTextures[8], fpos, level);
-	}
+	fvoxel = textureLod(megaChunkTexture, fpos, level);
 
 	mask.x = fvoxel.w;
 	mask.y = fvoxel.y;
@@ -234,7 +202,7 @@ bool octree_get_pixel(Ray ray, float max_dist, inout vec4 voutput, inout vec4 ma
 		debug_cnt++;
 #endif
 		move = true;
-		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * 3.0f && testPos.y < chunk_size && testPos.z < chunk_size * 3.0f) {
+		if (testPos.x >= 0.0f && testPos.y >= 0.0f && testPos.z >= 0.0f && testPos.x < chunk_size * float(chunk_edge_count) && testPos.y < chunk_size && testPos.z < chunk_size * float(chunk_edge_count)) {
 			getVoxel(testPos, layer, mask, 0.0f, cellSize);
 			if (mask.x > 0.0f) {
 				if (layer <= minLayer) {
