@@ -1,91 +1,188 @@
-function palSetElement(x, y, z, r, g, b, a, slot, level, len, element, variant) {
-    x += slot * len;
-    y += element * len;
-    z += variant * len;
-    let ind = (x + (y * len + z * len * len * pal_pix_cnt) * pal_size) * 4;
-    palette[level][ind] = r;
-    palette[level][ind + 1] = g;
-    palette[level][ind + 2] = b;
-    palette[level][ind + 3] = a;
-}
 
-function palSetColor(x, y, z, r, g, b, slot, level, len, element, variant) {
-    x += slot * len;
-    y += element * len;
-    z += variant * len;
-    let ind = (x + (y * len + z * len * len * pal_pix_cnt) * pal_size) * 4;
-    palette[level][ind] = r;
-    palette[level][ind + 1] = g;
-    palette[level][ind + 2] = b;
-}
+class Palette {
+    #data = [];
+    #slots;
+    #subOctreeDepth;
+    #pixelsPerVoxel;
+    #variantCnt;
+    #dataTexture;
+    #subVoxelSize;
+    #textureId;
 
-function palGetElement(x, y, z, slot, element, variant) {
-    x += slot * subSize;
-    y += element * subSize;
-    z += variant * subSize;
-    let ind = (x + (y * subSize + z * subSize * subSize * pal_pix_cnt) * pal_size) * 4;
-    return [
-        palette[0][ind],
-        palette[0][ind + 1],
-        palette[0][ind + 2],
-        palette[0][ind + 3]
-    ];
-}
+    constructor(slots, pixelsPerVoxel, variantCnt, subOctreeDepth, shaderProgram, textureId = 0) {
+        this.#slots = slots;
+        this.#pixelsPerVoxel = pixelsPerVoxel;
+        this.#variantCnt = variantCnt;
+        this.#subOctreeDepth = subOctreeDepth;
+        this.#subVoxelSize = 1 << subOctreeDepth;
+        this.#textureId = textureId;
 
-function pal_octree_set(x, y, z, r, g, b, a, s, e, ro, slot, variant) {
-    //variants with indices greater than number of variants are animated
-    if (variant >= pal_variants) return;
+        let textureLocPal = gl.getUniformLocation(shaderProgram.program, "paletteTexture");
 
-    if (a > 0) {
-        // iterate until the mask is shifted to target (leaf) layer
-        let pow2 = 1;
-        let xo, yo, zo;
-        for (let depth = 0; depth < subOctreeDepth; depth++) {
-            xo = (x >> (subOctreeDepth - depth));
-            yo = (y >> (subOctreeDepth - depth)) * pow2;
-            zo = (z >> (subOctreeDepth - depth)) * pow2 * pow2;
+        gl.uniform1i(textureLocPal, textureId);
+        gl.activeTexture(gl.TEXTURE0 + textureId);
+        this.#dataTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_3D, this.#dataTexture);
 
-            let pal_variant_z_offset = pow2 * pow2 * pow2 * variant * pal_pix_cnt;
-            let pal_material_y_offset = pow2 * pow2 * pal_size * 4;
-            let ind = ((xo + slot * pow2) + (yo + zo * pal_pix_cnt + pal_variant_z_offset) * pal_size) * 4;
-            let oc = (((x >> (subOctreeDepth - 1 - depth)) & 1) * 1) + (((y >> (subOctreeDepth - 1 - depth)) & 1) * 2) + (((z >> (subOctreeDepth - 1 - depth)) & 1) * 4);
-            palette[subOctreeDepth - depth][ind + 3] |= 1 << oc;
-            palette[subOctreeDepth - depth][ind + 0] = r;
-            palette[subOctreeDepth - depth][ind + 1] = g;
-            palette[subOctreeDepth - depth][ind + 2] = b;
-            palette[subOctreeDepth - depth][ind + pal_material_y_offset] = s;
-            palette[subOctreeDepth - depth][ind + pal_material_y_offset + 1] = e;
-            palette[subOctreeDepth - depth][ind + pal_material_y_offset + 2] = ro;
-            //palSetColor(xo, yo, zo, s, e, 0, slot, subOctreeDepth - depth, pow2, 1, variant);
-
-            pow2 *= 2;
+        let msize = this.#subVoxelSize;
+        for (let c = 0; c <= this.#subOctreeDepth; c++) {
+            this.#data.push(new Uint8Array(msize * msize * msize * 4 * this.#slots * this.#pixelsPerVoxel * this.#variantCnt));
+            msize /= 2;
         }
-        palSetElement(x, y, z, r, g, b, a, slot, 0, subSize, 0, variant);
-        palSetElement(x, y, z, s, e, ro, 0, slot, 0, subSize, 1, variant);
+
+        const internalFormat = gl.RGBA;
+        const srcFormat = gl.RGBA;
+        const srcType = gl.UNSIGNED_BYTE;
+        gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
+            this.#subVoxelSize * this.#slots, this.#subVoxelSize * this.#pixelsPerVoxel, this.#subVoxelSize * this.#variantCnt,
+            0, srcFormat, srcType, this.#data[0]);
+        gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.generateMipmap(gl.TEXTURE_3D);
+
+
+        msize = this.#subVoxelSize;
+        for (let c = 0; c <= this.#subOctreeDepth; c++) {
+            gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
+                msize * this.#slots, msize * this.#pixelsPerVoxel, msize * this.#variantCnt,
+                0, srcFormat, srcType, this.#data[c]);
+            msize /= 2;
+        }
+        gl.bindTexture(gl.TEXTURE_3D, this.#dataTexture);
     }
-    else {
-        palSetElement(x, y, z, 0, 0, 0, 0, slot, 0, subSize, 0, variant);
-        palSetElement(x, y, z, 0, 0, 0, 0, slot, 0, subSize, 1, variant);
-        let xo = x, yo = y, zo = z;
-        let pow2 = 0.5 * subSize;
-        let cut_branches = true;
-        for (let depth = 0; depth < subOctreeDepth; depth++) {
 
-            xo >>= 1;
-            yo >>= 1;
-            zo >>= 1;
-            oc = (((x >> depth) & 1) * 1) + (((y >> depth) & 1) * 2) + (((z >> depth) & 1) * 4);
+    update() {
+        const internalFormat = gl.RGBA;
+        const srcFormat = gl.RGBA;
+        const srcType = gl.UNSIGNED_BYTE;
+        gl.activeTexture(gl.TEXTURE0 + this.#textureId);
+        gl.bindTexture(gl.TEXTURE_3D, this.#dataTexture);
 
-            let pal_variant_z_offset = pow2 * pow2 * pow2 * variant * pal_pix_cnt;
-            let ind = (xo + slot * pow2) * 4 + (yo * pow2 + zo * pow2 * pow2 * pal_pix_cnt + pal_variant_z_offset) * pal_size * 4;
-            if (cut_branches) {
-                palette[depth + 1][ind + 3] &= ~(1 << oc);
+
+        let msize = this.#subVoxelSize;
+        for (let c = 0; c <= this.#subOctreeDepth; c++) {
+            gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
+                msize * this.#slots, msize * this.#pixelsPerVoxel, msize * this.#variantCnt,
+                0, srcFormat, srcType, this.#data[c]);
+            msize /= 2;
+        }
+
+        generatePreviews();
+        displayPreviews();
+    }
+
+    setElement(x, y, z, r, g, b, a, slot, level, len, element, variant) {
+        x += slot * len;
+        y += element * len;
+        z += variant * len;
+        let ind = (x + (y * len + z * len * len * this.#pixelsPerVoxel) * this.#slots) * 4;
+        this.#data[level][ind] = r;
+        this.#data[level][ind + 1] = g;
+        this.#data[level][ind + 2] = b;
+        this.#data[level][ind + 3] = a;
+    }
+
+    getElement(x, y, z, slot, element, variant) {
+        x += slot * this.#subVoxelSize;
+        y += element * this.#subVoxelSize;
+        z += variant * this.#subVoxelSize;
+        let ind = (x + (y * this.#subVoxelSize + z * this.#subVoxelSize * this.#subVoxelSize * this.#pixelsPerVoxel) * this.#slots) * 4;
+        return [
+            this.#data[0][ind],
+            this.#data[0][ind + 1],
+            this.#data[0][ind + 2],
+            this.#data[0][ind + 3]
+        ];
+    }
+
+    octreeSet(x, y, z, r, g, b, a, s, e, ro, slot, variant) {
+        //variants with indices greater than number of variants are animated
+        if (variant >= this.#variantCnt) return;
+
+        if (a > 0) {
+            // iterate until the mask is shifted to target (leaf) layer
+            let pow2 = 1;
+            let xo, yo, zo;
+            for (let depth = 0; depth < this.#subOctreeDepth; depth++) {
+                xo = (x >> (this.#subOctreeDepth - depth));
+                yo = (y >> (this.#subOctreeDepth - depth)) * pow2;
+                zo = (z >> (this.#subOctreeDepth - depth)) * pow2 * pow2;
+
+                let pal_variant_z_offset = pow2 * pow2 * pow2 * variant * this.#pixelsPerVoxel;
+                let pal_material_y_offset = pow2 * pow2 * this.#slots * 4;
+                let ind = ((xo + slot * pow2) + (yo + zo * this.#pixelsPerVoxel + pal_variant_z_offset) * pal_size) * 4;
+                let oc = (((x >> (subOctreeDepth - 1 - depth)) & 1) * 1) + (((y >> (this.#subOctreeDepth - 1 - depth)) & 1) * 2) + (((z >> (this.#subOctreeDepth - 1 - depth)) & 1) * 4);
+                this.#data[this.#subOctreeDepth - depth][ind + 3] |= 1 << oc;
+                this.#data[this.#subOctreeDepth - depth][ind + 0] = r;
+                this.#data[this.#subOctreeDepth - depth][ind + 1] = g;
+                this.#data[this.#subOctreeDepth - depth][ind + 2] = b;
+                this.#data[this.#subOctreeDepth - depth][ind + pal_material_y_offset] = s;
+                this.#data[this.#subOctreeDepth - depth][ind + pal_material_y_offset + 1] = e;
+                this.#data[this.#subOctreeDepth - depth][ind + pal_material_y_offset + 2] = ro;
+
+                pow2 *= 2;
             }
-            if (palette[depth + 1][ind + 3] != 0) { cut_branches = false; }
-            pow2 /= 2;
+            this.setElement(x, y, z, r, g, b, a, slot, 0, this.#subVoxelSize, 0, variant);
+            this.setElement(x, y, z, s, e, ro, 0, slot, 0, this.#subVoxelSize, 1, variant);
+        }
+        else {
+            this.setElement(x, y, z, 0, 0, 0, 0, slot, 0, this.#subVoxelSize, 0, variant);
+            this.setElement(x, y, z, 0, 0, 0, 0, slot, 0, this.#subVoxelSize, 1, variant);
+            let xo = x, yo = y, zo = z;
+            let pow2 = 0.5 * this.#subVoxelSize;
+            let cut_branches = true;
+            for (let depth = 0; depth < this.#subOctreeDepth; depth++) {
+                xo >>= 1;
+                yo >>= 1;
+                zo >>= 1;
+                let oc = (((x >> depth) & 1) * 1) + (((y >> depth) & 1) * 2) + (((z >> depth) & 1) * 4);
+
+                let pal_variant_z_offset = pow2 * pow2 * pow2 * variant * this.#pixelsPerVoxel;
+                let ind = (xo + slot * pow2) * 4 + (yo * pow2 + zo * pow2 * pow2 * this.#pixelsPerVoxel + pal_variant_z_offset) * this.#slots * 4;
+                if (cut_branches) {
+                    this.#data[depth + 1][ind + 3] &= ~(1 << oc);
+                }
+                if (this.#data[depth + 1][ind + 3] != 0) {
+                    cut_branches = false;
+                }
+                pow2 /= 2;
+            }
         }
     }
-}
+
+    save() {
+        let continuous_data = [];
+        let pal_header = new Uint32Array(4);
+        pal_header[0] = pal_size;     //x
+        pal_header[1] = pal_pix_cnt;  //y
+        pal_header[2] = pal_variants; //z
+        pal_header[3] = 8;            //edge length
+        continuous_data.push(pal_header);
+        for (let level = 0; level < 4; level++) {
+            continuous_data.push(this.#data[level]);
+        }
+        return new Blob(continuous_data);
+    }
+
+    load(continuous_data) {
+        let pal_header = new Uint32Array(continuous_data.buffer, 0, 4);
+        let pal_x = pal_header[0];
+        let pal_y = pal_header[1];
+        let pal_z = pal_header[2];
+        let pal_edge = pal_header[3];
+        let offset = 4 * 4;
+
+        let msize = pal_edge;
+        for (let level = 0; level < 4; level++) {
+            let lay_size = msize * msize * msize * pal_x * pal_y * pal_z * 4;
+            this.#data[level] = new Uint8Array(continuous_data.buffer, offset, lay_size);
+            offset += lay_size;
+            msize /= 2;
+        }
+
+        this.update();
+    }
+};
+
 class Chunk {
     #data = [];
     #x;
@@ -214,18 +311,20 @@ class MapManager {
     #shaderProgram;
     #chunkTextures = [];
     #chunkSize;
+    #chunkOctreeDepth;
     #idMapUni;
 
-    constructor(chunkOffset, gl, shaderProgram, chunkSize, idMapUniName) {
+    constructor(chunkOffset, gl, shaderProgram, octreeDepth, idMapUniName) {
         this.#chunkOffset = chunkOffset;
         this.#gl = gl;
         this.#shaderProgram = shaderProgram;
-        this.#chunkSize = chunkSize;
+        this.#chunkSize = Math.pow(2, octreeDepth);
+        this.#chunkOctreeDepth = octreeDepth;
         this.#idMapUni = this.#gl.getUniformLocation(this.#shaderProgram.program, idMapUniName);
 
         for (let x = 0; x < 3; x++) {
             for (let z = 0; z < 3; z++) {
-                let chunk = new Chunk(x, 0, z, pixelsPerVoxel, octree_depth);
+                let chunk = new Chunk(x, 0, z, pixelsPerVoxel, this.#chunkOctreeDepth);
                 this.#chunkMap.set([x + this.#chunkOffset[0] - 1, 0, z + this.#chunkOffset[2] - 1].join(','), chunk);
                 this.#visibleChunks.push(chunk);
                 this.generateChunk(this.#chunkOffset[0] + x - 1, 0, this.#chunkOffset[2] + z - 1, false, 0, 0, 0);
@@ -257,7 +356,7 @@ class MapManager {
 
             this.#gl.generateMipmap(this.#gl.TEXTURE_3D);
             let msize = this.#chunkSize / 2;
-            for (let c = 1; c <= octree_depth; c++) {
+            for (let c = 1; c <= this.#chunkOctreeDepth; c++) {
                 this.#gl.texImage3D(this.#gl.TEXTURE_3D, c, internalFormat,
                     msize * pixelsPerVoxel, msize, msize, 0, srcFormat, srcType,
                     this.#visibleChunks[i].data[c]);
@@ -272,7 +371,7 @@ class MapManager {
         gl.activeTexture(gl.TEXTURE0 + i);
         gl.bindTexture(gl.TEXTURE_3D, this.#chunkTextures[i]);
         let msize = this.#chunkSize;
-        for (let c = 0; c < octree_depth + 1; c++) {
+        for (let c = 0; c < this.#chunkOctreeDepth + 1; c++) {
             gl.texSubImage3D(gl.TEXTURE_3D, c, x0, y0, z0, Math.abs(x0 - x1) + 1, Math.abs(y0 - y1) + 1, Math.abs(z0 - z1) + 1, internalFormat, srcType,
                 this.#visibleChunks[i].data[c]);
             x0 = Math.floor(x0 / 2);
@@ -305,7 +404,7 @@ class MapManager {
 
         if (build_new) {
 
-            let chunk = new Chunk(x, y, z, pixelsPerVoxel, octree_depth);
+            let chunk = new Chunk(x, y, z, pixelsPerVoxel, this.#chunkOctreeDepth);
             this.#chunkMap.set([x, y, z].join(','), chunk);
 
             this.#visibleChunks[i] = chunk;
@@ -379,7 +478,7 @@ class MapManager {
 
         let offset = 4 + header_len * 4 * 3;
         for (let c = 0; c < header_len; c++) {
-            let chunk = new Chunk(0, 0, 0, pixelsPerVoxel, octree_depth);
+            let chunk = new Chunk(0, 0, 0, pixelsPerVoxel, this.#chunkOctreeDepth);
 
             for (let vx = 0; vx < this.#chunkSize; vx++) {
                 for (let vy = 0; vy < this.#chunkSize; vy++) {
@@ -396,7 +495,7 @@ class MapManager {
         for (let x = 0; x < 3; x++) {
             for (let z = 0; z < 3; z++) {
                 if (!this.#chunkMap.has([x + this.#chunkOffset[0] - 1, 0, z + this.#chunkOffset[2] - 1].join(','))) {
-                    let chunk = new Chunk(x, 0, z, pixelsPerVoxel, octree_depth);
+                    let chunk = new Chunk(x, 0, z, pixelsPerVoxel, this.#chunkOctreeDepth);
                     this.#chunkMap.set([x + this.#chunkOffset[0] - 1, 0, z + this.#chunkOffset[2] - 1].join(','), chunk);
                     this.#visibleChunks.push(this.#chunkMap.get([x + this.#chunkOffset[0] - 1, 0, z + this.#chunkOffset[2] - 1].join(',')));
                 }

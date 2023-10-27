@@ -25,7 +25,7 @@ struct Ray {
 
 out vec4[3] outColor;
 uniform sampler3D chunkTextures[chunk_count];
-uniform sampler3D u_palette;
+uniform sampler3D paletteTexture;
 uniform sampler2D light_high;
 uniform sampler2D light_low;
 uniform ivec3[3] chunk_map;
@@ -143,8 +143,8 @@ vec4 getVoxel(vec3 fpos, float level, out vec2 mask, float element, float voxelS
 			else
 				ofpos.z += animationTime;
 
-			fvoxel = textureLod(u_palette, ofpos, olevel);
-			mask.y = textureLod(u_palette, ofpos, olevel + 1.0f).w;
+			fvoxel = textureLod(paletteTexture, ofpos, olevel);
+			mask.y = textureLod(paletteTexture, ofpos, olevel + 1.0f).w;
 			mask.x = fvoxel.w;
 		}
 		else {

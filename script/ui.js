@@ -1,3 +1,15 @@
+function resize(swidth, sheight) {
+	localStorage.setItem("swidth", swidth);
+	localStorage.setItem("sheight", sheight);
+}
+
+function resize() {
+	const resolution = document.getElementById("resolutionSelect").value.split('x');
+	const scale = document.getElementById("resScale").value;
+	localStorage.setItem("swidth", Math.floor(resolution[0] * scale / 100 / 2) * 2);
+	localStorage.setItem("sheight", Math.floor(resolution[1] * scale / 100 / 2) * 2);
+}
+
 function updateSliders() {
 	r = brush.color_r;
 	g = brush.color_g;
@@ -63,6 +75,31 @@ function precisionButton() {
 	showPrecision(subvoxelMode);
 }
 openTab(0);
+
+function readResolution(canvas) {
+	let sw = localStorage.getItem("swidth");
+	let sh = localStorage.getItem("sheight");
+
+	if (!sw || !sh) {
+		sw = canvas.width;
+		sh = canvas.height;
+		localStorage.setItem("swidth", canvas.width);
+		localStorage.setItem("sheight", canvas.height);
+	}
+
+	const resolution = sw.toString() + "x" + sh.toString();
+	if (document.querySelector("#resolutionSelect option[value='" + resolution + "']"))
+		document.getElementById("resolutionSelect").value = resolution;
+	else {
+		let option = document.createElement("option");
+		option.value = resolution;
+		option.innerText = resolution;
+		document.getElementById("resolutionSelect").appendChild(option);
+		document.getElementById("resolutionSelect").value = resolution;
+	}
+	scaleUpdate(100);
+	return [sw, sh];
+}
 
 function scaleUpdate(scale = -1) {
 	if (scale < 0) {

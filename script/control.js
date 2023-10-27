@@ -315,7 +315,7 @@ function generatePreviews() {
             for (let x = 0; x < subSize; x++) {
                 for (let y = 0; y < subSize; y++) {
                     let off = (x + y * subSize) * 4;
-                    let voxel = palGetElement(x, subSize - y - 1, 3, i, 0, variant);
+                    let voxel = palette.getElement(x, subSize - y - 1, 3, i, 0, variant);
                     pixels[off] = voxel[0];
                     pixels[off + 1] = voxel[1];
                     pixels[off + 2] = voxel[2];

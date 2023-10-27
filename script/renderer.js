@@ -6,33 +6,28 @@ const vec3_minus_one = glMatrix.vec3.fromValues(-1.0, -1.0, -1.0);
 var rotation = glMatrix.vec3.create();
 var cursor = glMatrix.vec3.create();
 var angle = glMatrix.vec3.create();
-
+var locked = false;
+var brush_lock = true;
+var prev_rotation = glMatrix.vec3.create();
+var prev_position = glMatrix.vec3.create();
+var deltaTime = 0;
 var cursor3D = glMatrix.vec3.create();
 var paint = 0;
 var brush = { diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0, emission: 0, roughness: 0, palette_id: 0, variant: 0, type: true };
 var subvoxel_paint = false;
 
+var mapManager;
 const pixelsPerVoxel = 1;
 const size = 128;
-const subSize = 8;
-const subOctreeDepth = 3;
-var pal_texture;
-var palette = [];
-const pal_size = 256;
-const pal_pix_cnt = 2;
-const pal_variants = 8;
-var mapManager;
-
 const octree_depth = 7;
 const chunk_size = ((1 - Math.pow(8, (octree_depth + 1))) / -7) * pixelsPerVoxel;
 
-var locked = false;
-var brush_lock = true;
-
-var prev_rotation = glMatrix.vec3.create();
-var prev_position = glMatrix.vec3.create();
-
-var deltaTime = 0;
+var palette;
+const subSize = 8;
+const subOctreeDepth = 3;
+const pal_size = 256;
+const pal_pix_cnt = 2;
+const pal_variants = 8;
 
 function main() {
     const canvas = document.querySelector("#glCanvas");
@@ -44,10 +39,8 @@ function main() {
         canvas.height = sh;
     }
 
-    // Initialize the GL context
     gl = canvas.getContext("webgl2");
 
-    // Only continue if WebGL is available and working
     if (gl === null) {
         alert("Unable to initialize WebGL. Your browser or machine may not support it.");
         return;
@@ -73,43 +66,6 @@ function main() {
 
 window.onload = main;
 
-function readResolution(canvas) {
-    let sw = localStorage.getItem("swidth");
-    let sh = localStorage.getItem("sheight");
-
-    if (!sw || !sh) {
-        sw = canvas.width;
-        sh = canvas.height;
-        localStorage.setItem("swidth", canvas.width);
-        localStorage.setItem("sheight", canvas.height);
-    }
-
-    const resolution = sw.toString() + "x" + sh.toString();
-    if (document.querySelector("#resolutionSelect option[value='" + resolution + "']"))
-        document.getElementById("resolutionSelect").value = resolution;
-    else {
-        let option = document.createElement("option");
-        option.value = resolution;
-        option.innerText = resolution;
-        document.getElementById("resolutionSelect").appendChild(option);
-        document.getElementById("resolutionSelect").value = resolution;
-    }
-    scaleUpdate(100);
-    return [sw, sh];
-}
-
-function resize(swidth, sheight) {
-    localStorage.setItem("swidth", swidth);
-    localStorage.setItem("sheight", sheight);
-}
-
-function resize() {
-    const resolution = document.getElementById("resolutionSelect").value.split('x');
-    const scale = document.getElementById("resScale").value;
-    localStorage.setItem("swidth", Math.floor(resolution[0] * scale / 100 / 2) * 2);
-    localStorage.setItem("sheight", Math.floor(resolution[1] * scale / 100 / 2) * 2);
-}
-
 function save(name) {
     let dataBlob = mapManager.save();
 
@@ -122,19 +78,9 @@ function save(name) {
 }
 
 function save_palette(name) {
-    let continuous_data = [];
-    let pal_header = new Uint32Array(4);
-    pal_header[0] = pal_size;     //x
-    pal_header[1] = pal_pix_cnt;  //y
-    pal_header[2] = pal_variants; //z
-    pal_header[3] = 8;            //edge length
-    continuous_data.push(pal_header);
-    for (let level = 0; level < 4; level++) {
-        continuous_data.push(palette[level]);
-    }
+    let pal_blob = palette.save();
 
-    var p = document.createElement('a');
-    let pal_blob = new Blob(continuous_data);
+    var p = document.createElement('a');   
     p.href = URL.createObjectURL(pal_blob);
     p.download = name + ".vp";
     document.body.appendChild(p);
@@ -163,22 +109,7 @@ function loadFile() {
                     mapManager.load(continuous_data);
                 }
                 else if (f_extension == 'vp') {
-                    let pal_header = new Uint32Array(continuous_data.buffer, 0, 4);
-                    let pal_x = pal_header[0];
-                    let pal_y = pal_header[1];
-                    let pal_z = pal_header[2];
-                    let pal_edge = pal_header[3];
-                    let offset = 4 * 4;
-
-                    let msize = pal_edge;
-                    for (let level = 0; level < 4; level++) {
-                        let lay_size = msize * msize * msize * pal_x * pal_y * pal_z * 4;
-                        palette[level] = new Uint8Array(continuous_data.buffer, offset, lay_size);
-                        offset += lay_size;
-                        msize /= 2;
-                    }
-
-                    updatePalette();
+                    palette.load(continuous_data);
                 }
                 else {
                     console.log("Unknown file extension");
@@ -188,28 +119,6 @@ function loadFile() {
     }
     input.click();
 }
-
-function updatePalette() {
-    const internalFormat = gl.RGBA;
-    const srcFormat = gl.RGBA;
-    const srcType = gl.UNSIGNED_BYTE;
-    gl.activeTexture(gl.TEXTURE0 + 11);
-    gl.bindTexture(gl.TEXTURE_3D, pal_texture);
-    
-    //edge 2 ^ 3 = 8 voxels
-    let msize = 8;
-    let palette_oc_depth = 3;
-    for (let c = 0; c <= palette_oc_depth; c++) {
-        gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
-            msize * pal_size, msize * pal_pix_cnt, msize * pal_variants, 0, srcFormat, srcType,
-            palette[c]);
-        msize /= 2;
-    }
-
-    generatePreviews();
-    displayPreviews();
-}
-
 
 var copied = [brush.palette_id, brush.variant];
 function copy() {
@@ -223,13 +132,13 @@ function paste() {
         for (let x = 0; x < 8; x++) {
             for (let y = 0; y < 8; y++) {
                 for (let z = 0; z < 8; z++) {
-                    let voxA = palGetElement(x, y, z, copied[0], 0, copied[1]);
-                    let voxB = palGetElement(x, y, z, copied[0], 1, copied[1]);
-                    pal_octree_set(x, y, z, voxA[0], voxA[1], voxA[2], voxA[3], voxB[0], voxB[1], voxB[2], brush.palette_id, brush.variant);
+                    let voxA = palette.palGetElement(x, y, z, copied[0], 0, copied[1]);
+                    let voxB = palette.palGetElement(x, y, z, copied[0], 1, copied[1]);
+                    palette.octreeSet(x, y, z, voxA[0], voxA[1], voxA[2], voxA[3], voxB[0], voxB[1], voxB[2], brush.palette_id, brush.variant);
                 }
             }
         }
-        updatePalette();
+        palette.update();
     }
     else {
         console.log('Cannot copy animation!');
@@ -241,43 +150,9 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     initBuffers(gl);
 
     let chunkOffset = glMatrix.vec3.fromValues(20, 0, 20);
-    mapManager = new MapManager(chunkOffset, gl, shaderProgram, size, 'chunk_map');
+    mapManager = new MapManager(chunkOffset, gl, shaderProgram, octree_depth, 'chunk_map');
 
-    //voxel palette
-    var textureLocPal = gl.getUniformLocation(shaderProgram.program, "u_palette");
-    //pixels.length + 1, because we want to use texture unit after chunk data (pixels.length) and previous frame data (+1)
-    gl.uniform1i(textureLocPal, mapManager.visibleChunks.length + 2);
-    gl.activeTexture(gl.TEXTURE0 + mapManager.visibleChunks.length + 2);
-    pal_texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_3D, pal_texture);
-
-    let msize = subSize;
-    //edge 2 ^ 3 = 8 voxels
-    let palette_oc_depth = 3;
-    for (let c = 0; c <= palette_oc_depth; c++) {
-        palette.push(new Uint8Array(msize * msize * msize * 4 * pal_size * pal_pix_cnt * pal_variants));
-        //palette[c].fill(0xff, 0, msize * msize * msize * 4 * 256);
-        msize /= 2;
-    }
-
-    const internalFormat = gl.RGBA;
-    const srcFormat = gl.RGBA;
-    const srcType = gl.UNSIGNED_BYTE;
-    gl.texImage3D(gl.TEXTURE_3D, 0, internalFormat,
-        8 * pal_size, 8 * pal_pix_cnt, 8 * pal_variants, 0, srcFormat, srcType,
-        palette[0]);
-    gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.generateMipmap(gl.TEXTURE_3D);
-   
-
-    msize = subSize;
-    for (let c = 0; c <= palette_oc_depth; c++) {
-        gl.texImage3D(gl.TEXTURE_3D, c, internalFormat,
-            msize * pal_size, msize * pal_pix_cnt, msize * pal_variants, 0, srcFormat, srcType,
-            palette[c]);
-        msize /= 2;
-    }
-    gl.bindTexture(gl.TEXTURE_3D, pal_texture);
+    palette = new Palette(pal_size, pal_pix_cnt, pal_variants, subOctreeDepth, shaderProgram, mapManager.visibleChunks.length + 2);
 
     // Get the attribute location
     var coord = gl.getAttribLocation(shaderProgram.program, "coordinates");
@@ -371,11 +246,11 @@ function addToPalette(r, g, b, s, e, ro, slot) {
     for (let x = 0; x < 8; x++) {
         for (let y = 0; y < 8; y++) {
             for (let z = 0; z < 8; z++) {
-                pal_octree_set(x, y, z, r, g, b, 255, s, e, ro, slot, brush.variant);
+                palette.octreeSet(x, y, z, r, g, b, 255, s, e, ro, slot, brush.variant);
             }
         }
     }
-    updatePalette();
+    palette.update();
 }
 
 function updateCamera(mapManager) {
@@ -500,7 +375,7 @@ function drawScene(renderParams, time) {
 
                     if (paint == 1 || paint == 3 || paint == 4) {
                         //place voxel
-                        if (parentVox[3] > 0 && palGetElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0, parentVox[2])[3] > 0) {
+                        if (parentVox[3] > 0 && palette.getElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0, parentVox[2])[3] > 0) {
                             offset -= 0.1;
                         }
                         else
@@ -508,7 +383,7 @@ function drawScene(renderParams, time) {
                     }
                     else {
                         //delete voxel
-                        if (parentVox[3] <= 0 || palGetElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0, parentVox[2])[3] <= 0) {
+                        if (parentVox[3] <= 0 || palette.getElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0, parentVox[2])[3] <= 0) {
                             offset += 0.1;
                         }
                         else {
@@ -521,8 +396,8 @@ function drawScene(renderParams, time) {
                 }
             }
             if (parentVox[3] > 0) {
-                pal_octree_set(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, brush.roughness, parentVox[0], parentVox[2]);
-                updatePalette();
+                palette.octreeSet(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, brush.color_r, brush.color_g, brush.color_b, (paint == 1) ? 255 : 0, brush.clarity, brush.emission, brush.roughness, parentVox[0], parentVox[2]);
+                palette.update();
             }
         }
         else {
