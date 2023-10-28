@@ -303,7 +303,7 @@ function drawScene(renderParams, time) {
         rotation[0], rotation[1], animationTime,0,
         40 - renderParams.mapManager.chunkOffset[0], renderParams.mapManager.chunkOffset[1], 40 - renderParams.mapManager.chunkOffset[2],0,
         renderParams.canvas.width, renderParams.canvas.height, frame,0,
-        1.2, 0.01, 255.0 * 8.0 * 2.0, 0,//projection (fov near far)
+        1.2, 0.01, 255.0 * 8.0 * 3.0, 0,//projection (fov near far)
         (prev_position[0] + renderParams.mapManager.chunkEdgeCount / 2 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + renderParams.mapManager.chunkEdgeCount / 2 * size) * subSize,0,
         prev_rotation[0], prev_rotation[1], prev_rotation[2],0,
         sceneConfig.skyColorUP[0], sceneConfig.skyColorUP[1], sceneConfig.skyColorUP[2],0,
@@ -368,12 +368,14 @@ function drawScene(renderParams, time) {
                 cursor3D[0] = Math.round((pos[0] * 8.0 + chunkEdgeCount / 2 * smallSize + direction[0] * (pixel[3] / 2.0 + offset)) - 0.5);
                 cursor3D[1] = Math.round((pos[1] * 8.0 + direction[1] * (pixel[3] / 2.0 + offset)) - 0.5);
                 cursor3D[2] = Math.round((pos[2] * 8.0 + chunkEdgeCount / 2 * smallSize + direction[2] * (pixel[3] / 2.0 + offset)) - 0.5);
+                console.log(cursor3D);
+                break;
 
                 const cx = Math.floor(cursor3D[0] / smallSize);
                 const cz = Math.floor(cursor3D[2] / smallSize);
                 if (cx < chunkEdgeCount && cz < chunkEdgeCount && cx >= 0 && cz >= 0) {
                     let chunkid = (cx + renderParams.mapManager.chunkOffset[0] + center) % chunkEdgeCount + ((cz + renderParams.mapManager.chunkOffset[2] + center) % chunkEdgeCount) * chunkEdgeCount;
-                    parentVox = renderParams.mapManager.visibleChunks[chunkid].getElement(Math.floor(cursor3D[0] / 8) % size, Math.floor(cursor3D[1] / 8) % size, Math.floor(cursor3D[2] / 8) % size, 0, size);
+                    parentVox = renderParams.mapManager.chunkMap[",,"].getElement(Math.floor(cursor3D[0] / 8) % size, Math.floor(cursor3D[1] / 8) % size, Math.floor(cursor3D[2] / 8) % size, 0, size);
 
                     if (paint == 1 || paint == 3 || paint == 4) {
                         //place voxel
@@ -410,40 +412,38 @@ function drawScene(renderParams, time) {
                 let pick = -1;
                 //try moving cursor up to 8 times
                 for (let it = 0; it < 8; it++) {
-                    cursor3D[0] = Math.round((pos[0] + chunkEdgeCount / 2 * size + direction[0] * (pixel[3] / 2.0 + offset)) - 0.5);
-                    cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 + offset)) - 0.5);
-                    cursor3D[2] = Math.round((pos[2] + chunkEdgeCount / 2 * size + direction[2] * (pixel[3] / 2.0 + offset)) - 0.5);
+                    let rayLength = pixel[3] / 2.0 + offset;
+                    let chunkOffset = renderParams.mapManager.chunkOffset;
+                    cursor3D[0] = Math.round((pos[0] + (chunkOffset[0] + 0.5) * size + direction[0] * rayLength) - 0.5);
+                    cursor3D[1] = Math.round((pos[1] + direction[1] * rayLength) - 0.5);
+                    cursor3D[2] = Math.round((pos[2] + (chunkOffset[2] + 0.5) * size + direction[2] * rayLength) - 0.5);
 
                     const cx = Math.floor(cursor3D[0] / size);
                     const cz = Math.floor(cursor3D[2] / size);
-                    if (cx < chunkEdgeCount && cz < chunkEdgeCount && cx >= 0 && cz >= 0) {
-                        let chunkid = (cx + renderParams.mapManager.chunkOffset[0] + center) % chunkEdgeCount + ((cz + renderParams.mapManager.chunkOffset[2] + center) % chunkEdgeCount) * chunkEdgeCount;
-                        if (paint == 1 || paint == 3 || paint == 4) {
-                            //place voxel
-                            if (renderParams.mapManager.visibleChunks[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] > 0) {
-                                offset -= 0.1;
-                            }
-                            else
-                                break;
-                        }
-                        else {
-                            //delete voxel
-                            if (paint == 5) {
-                                let element = renderParams.mapManager.visibleChunks[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size);
-                                pick = element[0];
-                                pickVariant = element[2];
-                            }
+                    let chunkKey = [cx, 0, cz].join(",");
 
-                            if (renderParams.mapManager.visibleChunks[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] <= 0) {
-                                offset += 0.1;
-                            }
-                            else {
-                                break;
-                            }
+                    if (paint == 1 || paint == 3 || paint == 4) {
+                        //place voxel
+                        if (renderParams.mapManager.chunkMap[chunkKey].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] > 0) {
+                            offset -= 0.1;
                         }
+                        else
+                            break;
                     }
                     else {
-                        break;
+                        //delete voxel
+                        if (paint == 5) {
+                            let element = renderParams.mapManager.chunkMap[chunkKey].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size);
+                            pick = element[0];
+                            pickVariant = element[2];
+                        }
+
+                        if (renderParams.mapManager.chunkMap[chunkKey].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] <= 0) {
+                            offset += 0.1;
+                        }
+                        else {
+                            break;
+                        }
                     }
                 }
 
@@ -471,11 +471,11 @@ function drawScene(renderParams, time) {
                                 for (let y = ystart; y <= Math.max(fill[1], cursor3D[1]); y++) {
                                     for (let z = zstart; z <= Math.max(fill[2], cursor3D[2]); z++) {
                                         if (x < chunkEdgeCount * size && z < chunkEdgeCount * size && y < size && x >= 0 && z >= 0 && y >= 0) {
-                                            let chunkid = Math.floor((x + (renderParams.mapManager.chunkOffset[0] + center) * size) / size) % chunkEdgeCount + Math.floor(((z + (renderParams.mapManager.chunkOffset[2] + center) * size) / size) % chunkEdgeCount) * chunkEdgeCount;
+                                            let chunkKey = [x, y, z].join(",");
                                             if (paint == 3)
-                                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 255);
+                                                renderParams.mapManager.chunkMap[chunkKey].octreeSet(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 255);
                                             else
-                                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 0);
+                                                renderParams.mapManager.chunkMap[chunkKey].octreeSet(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 0);
                                             chunks2send.set(chunkid, 1);
                                         }
                                     }
@@ -502,18 +502,22 @@ function drawScene(renderParams, time) {
                             for (let x = -r; x < r; x++) {
                                 for (let y = -r; y < r; y++) {
                                     for (let z = -r; z < r; z++) {
-                                        if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
+                                        if (cursor3D[1] + y < size &&  cursor3D[1] + y >= 0) {
                                             if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
-                                                let chunkid = Math.floor((cursor3D[0] + x + (renderParams.mapManager.chunkOffset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (renderParams.mapManager.chunkOffset[2] + 2) * size) / size) % 3) * 3;
-                                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
-                                                chunks2send.set(chunkid, 1);
+                                                const cx = Math.floor((cursor3D[0] + x) / size);
+                                                const cy = 0;
+                                                const cz = Math.floor((cursor3D[2] + z) / size);
+                                                let chunkKey = [cx, cy, cz].join(",");
+                                                let chunk = renderParams.mapManager.chunkMap[chunkKey];
+                                                chunk.octreeSet(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
+                                                chunks2send.set(chunk, 1);
                                             }
                                         }
                                     }
                                 }
                             }
                             chunks2send.forEach((val, chunk) => {
-                                renderParams.mapManager.sendChunk(chunk, 0, 0, 0, size - 1, size - 1, size - 1); console.log(chunk)
+                                renderParams.mapManager.sendChunk(chunk, 0, 0, 0, size - 1, size - 1, size - 1);
                             });
                         }
                         else {

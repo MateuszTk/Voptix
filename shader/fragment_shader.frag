@@ -7,7 +7,7 @@ precision highp sampler3D;
 //#define DEBUG
 
 const float chunk_size = 128.0f * 8.0f;
-const int chunk_edge_count = 3;
+const int chunk_edge_count = 5;
 
 struct Ray {
 	vec3 orig;
