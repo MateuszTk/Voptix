@@ -186,8 +186,15 @@
 						<span id="resScaleText"></span><br>
 						<span id="resText"></span><br>
 					</div>
-					<button onclick="resize()">Save</button>
-					<p>Refresh this page to apply resolution changes</p>
+					<button onclick="resize()">Save resolution</button>
+					<br/>
+					<div class="slider">
+						<label for="viewDistance">ViewDist</label>
+						<input type="range" min="3" max="11" value="3" step="2" id="viewDistance" oninput="document.getElementById('viewDistanceText').innerText = document.getElementById('viewDistance').value">
+						<span id="viewDistanceText"></span><br>
+					</div>
+					<button onclick="setMapSize(document.getElementById('viewDistance').value)">Save view distance</button>
+					<p>Refresh this page to apply resolution changes and view distance</p>
 					<h2>GRAPHICS QUALITY</h2>
 					<div class="slider">
 						<label for="GI_samples">GI samples</label>

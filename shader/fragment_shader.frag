@@ -3,11 +3,17 @@
 precision highp float;
 precision highp sampler3D;
 
+//%%DEFINES%%
+
 //#define LOD
 //#define DEBUG
 
+#ifndef MAP_SIZE
+	#define MAP_SIZE 3
+#endif
+
 const float chunk_size = 128.0f * 8.0f;
-const int chunk_edge_count = 5;
+const int chunk_edge_count = MAP_SIZE;
 
 struct Ray {
 	vec3 orig;

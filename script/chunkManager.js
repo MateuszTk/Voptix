@@ -195,14 +195,15 @@ class MapManager {
     #chunkSize;
     #chunkOctreeDepth;
     #idMapUni;
-    #chunkEdgeCount = 5;
+    #chunkEdgeCount;
 
     #workers = [];
     #isWorking = [];
     #freshChunks = [];
     #workerJobs = [];
 
-    constructor(chunkOffset, gl, shaderProgram, octreeDepth, idMapUniName) {
+    constructor(chunkOffset, gl, shaderProgram, octreeDepth, idMapUniName, chunkEdgeCount) {
+        this.#chunkEdgeCount = chunkEdgeCount;
         this.#chunkOffset = chunkOffset;
         this.#gl = gl;
         this.#shaderProgram = shaderProgram;

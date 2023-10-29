@@ -17,6 +17,7 @@ var brush = { diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0,
 var subvoxel_paint = false;
 
 var mapManager;
+var mapSize = 3;
 const pixelsPerVoxel = 1;
 const size = 128;
 const octree_depth = 7;
@@ -46,6 +47,11 @@ function main() {
         return;
     }
 
+    let savedMapSize = localStorage.getItem("mapSize");
+    if (savedMapSize) {
+        mapSize = parseInt(savedMapSize);
+    }
+
     worldParameter = window.location.search.substr(1);
 
     initBlockPicker();
@@ -65,6 +71,11 @@ function main() {
 }
 
 window.onload = main;
+
+function setMapSize(size) {
+    mapSize = size;
+    localStorage.setItem("mapSize", size);
+}
 
 function save(name) {
     let dataBlob = mapManager.save();
@@ -146,11 +157,15 @@ function paste() {
 }
 
 function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denoiser_fragment) {
+
+    let defines = "#define MAP_SIZE " + mapSize + "\n";
+    fsSource = fsSource.replace("//%%DEFINES%%", defines);
+
     const shaderProgram = new ShaderProgram(gl, vsSource, fsSource);
     initBuffers(gl);
 
     let chunkOffset = glMatrix.vec3.fromValues(20, 0, 20);
-    mapManager = new MapManager(chunkOffset, gl, shaderProgram, octree_depth, 'chunk_map');
+    mapManager = new MapManager(chunkOffset, gl, shaderProgram, octree_depth, 'chunk_map', mapSize);
 
     palette = new Palette(pal_size, pal_pix_cnt, pal_variants, subOctreeDepth, shaderProgram, 3);
 
