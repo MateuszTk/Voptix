@@ -17,6 +17,7 @@ var brush = { diameter: 1, color_r: 255, color_g: 255, color_b: 255, clarity: 0,
 var subvoxel_paint = false;
 
 var mapManager;
+var mapSize = 3;
 const pixelsPerVoxel = 1;
 const size = 128;
 const octree_depth = 7;
@@ -46,6 +47,11 @@ function main() {
         return;
     }
 
+    let savedMapSize = localStorage.getItem("mapSize");
+    if (savedMapSize) {
+        mapSize = parseInt(savedMapSize);
+    }
+
     worldParameter = window.location.search.substr(1);
 
     initBlockPicker();
@@ -65,6 +71,11 @@ function main() {
 }
 
 window.onload = main;
+
+function setMapSize(size) {
+    mapSize = size;
+    localStorage.setItem("mapSize", size);
+}
 
 function save(name) {
     let dataBlob = mapManager.save();
@@ -146,13 +157,17 @@ function paste() {
 }
 
 function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denoiser_fragment) {
+
+    let defines = "#define MAP_SIZE " + mapSize + "\n";
+    fsSource = fsSource.replace("//%%DEFINES%%", defines);
+
     const shaderProgram = new ShaderProgram(gl, vsSource, fsSource);
     initBuffers(gl);
 
     let chunkOffset = glMatrix.vec3.fromValues(20, 0, 20);
-    mapManager = new MapManager(chunkOffset, gl, shaderProgram, octree_depth, 'chunk_map');
+    mapManager = new MapManager(chunkOffset, gl, shaderProgram, octree_depth, 'chunk_map', mapSize);
 
-    palette = new Palette(pal_size, pal_pix_cnt, pal_variants, subOctreeDepth, shaderProgram, mapManager.visibleChunks.length + 2);
+    palette = new Palette(pal_size, pal_pix_cnt, pal_variants, subOctreeDepth, shaderProgram, 3);
 
     // Get the attribute location
     var coord = gl.getAttribLocation(shaderProgram.program, "coordinates");
@@ -169,7 +184,6 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     //scene buffer
     const sceneBuffer = new UniformBuffer(gl, 4 * 13 + 4, 0);
     const block = gl.getUniformBlockIndex(shaderProgram.program, "Scene");
-    console.log(block);
     gl.uniformBlockBinding(shaderProgram.program, block, sceneBuffer.boundLocation);
 
     //----shader program for post-processing and 1st pass----//
@@ -186,7 +200,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     // ----feedback loop----
     shaderProgram.use();
 
-    let mainMat = new Material(gl, shaderProgram, mapManager.visibleChunks.length);
+    let mainMat = new Material(gl, shaderProgram, 1);
     mainMat.addTexture("light_high", postpFb.textures[0]);
     mainMat.addTexture("light_low", postpFb.textures[1]);
 
@@ -297,14 +311,15 @@ setInterval(function () {
 
 function drawScene(renderParams, time) {
     updateCamera(renderParams.mapManager);
+    renderParams.mapManager.update();
 
     const scene = [
-        (pos[0] + 1.5 * size) * subSize, (pos[1]) * subSize, (pos[2] + 1.5 * size) * subSize,0,
+        (pos[0] + renderParams.mapManager.chunkEdgeCount / 2 * size) * subSize, (pos[1]) * subSize, (pos[2] + renderParams.mapManager.chunkEdgeCount / 2 * size) * subSize, 0,
         rotation[0], rotation[1], animationTime,0,
         40 - renderParams.mapManager.chunkOffset[0], renderParams.mapManager.chunkOffset[1], 40 - renderParams.mapManager.chunkOffset[2],0,
         renderParams.canvas.width, renderParams.canvas.height, frame,0,
-        1.2, 0.01, 255.0 * 8.0, 0,//projection (fov near far)
-        (prev_position[0] + 1.5 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + 1.5 * size) * subSize,0,
+        1.2, 0.01, 255.0 * 8.0 * 3.0, 0,//projection (fov near far)
+        (prev_position[0] + renderParams.mapManager.chunkEdgeCount / 2 * size) * subSize, (prev_position[1]) * subSize, (prev_position[2] + renderParams.mapManager.chunkEdgeCount / 2 * size) * subSize,0,
         prev_rotation[0], prev_rotation[1], prev_rotation[2],0,
         sceneConfig.skyColorUP[0], sceneConfig.skyColorUP[1], sceneConfig.skyColorUP[2],0,
         sceneConfig.skyColorDown[0], sceneConfig.skyColorDown[1], sceneConfig.skyColorDown[2],0,
@@ -355,7 +370,28 @@ function drawScene(renderParams, time) {
     renderParams.dispMat.use();
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
+    brushPaint(renderParams);
+
+    window.requestAnimationFrame(function (timestamp) {
+        deltaTime = timestamp - time;
+
+        if (wait > 10) {
+            document.getElementById('fps_counter').innerHTML = (Math.round(10000.0 / fps_time) + "FPS");
+            fps_time = 0;
+            wait = 0;
+        }
+        else
+            fps_time += deltaTime;
+
+        wait++;
+        drawScene(renderParams, timestamp);
+    });
+}
+
+function brushPaint(renderParams) {
     if (paint > 0) {
+        let chunkEdgeCount = renderParams.mapManager.chunkEdgeCount;
+        let center = (Math.floor(chunkEdgeCount / 2) + 1);
         if (subvoxel_paint) {
             //place voxel
             let offset = 0.0;
@@ -363,36 +399,40 @@ function drawScene(renderParams, time) {
             let parentVox = [-1, -1, -1, -1];
             //try moving cursor up to 8 times
             for (let it = 0; it < 8; it++) {
-                cursor3D[0] = Math.round((pos[0] * 8.0 + 1.5 * smallSize + direction[0] * (pixel[3] / 2.0 + offset)) - 0.5);
-                cursor3D[1] = Math.round((pos[1] * 8.0 + direction[1] * (pixel[3] / 2.0 + offset)) - 0.5);
-                cursor3D[2] = Math.round((pos[2] * 8.0 + 1.5 * smallSize + direction[2] * (pixel[3] / 2.0 + offset)) - 0.5);
+                let rayLength = pixel[3] / 2.0 + offset;
+                let chunkOffset = renderParams.mapManager.chunkOffset;
+                cursor3D[0] = Math.round((pos[0] * 8.0 + (chunkOffset[0] + 0.5) * smallSize + direction[0] * rayLength) - 0.5);
+                cursor3D[1] = Math.round((pos[1] * 8.0 + direction[1] * rayLength) - 0.5)
+                cursor3D[2] = Math.round((pos[2] * 8.0 + (chunkOffset[2] + 0.5) * smallSize + direction[2] * rayLength) - 0.5);
+                console.log(cursor3D);
 
                 const cx = Math.floor(cursor3D[0] / smallSize);
                 const cz = Math.floor(cursor3D[2] / smallSize);
-                if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
-                    let chunkid = (cx + renderParams.mapManager.chunkOffset[0] + 2) % 3 + ((cz + renderParams.mapManager.chunkOffset[2] + 2) % 3) * 3;
-                    parentVox = renderParams.mapManager.visibleChunks[chunkid].getElement(Math.floor(cursor3D[0] / 8) % size, Math.floor(cursor3D[1] / 8) % size, Math.floor(cursor3D[2] / 8) % size, 0, size);
 
-                    if (paint == 1 || paint == 3 || paint == 4) {
-                        //place voxel
-                        if (parentVox[3] > 0 && palette.getElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0, parentVox[2])[3] > 0) {
-                            offset -= 0.1;
-                        }
-                        else
-                            break;
+                let chunkKey = [cx, 0, cz].join(",");
+                let chunk = renderParams.mapManager.chunkMap.get(chunkKey);
+                if (chunk == undefined) {
+                    break;
+                }
+
+                parentVox = chunk.getElement(Math.floor(cursor3D[0] / 8) % size, Math.floor(cursor3D[1] / 8) % size, Math.floor(cursor3D[2] / 8) % size, 0, size);
+
+                if (paint == 1 || paint == 3 || paint == 4) {
+                    //adjust position for voxel placement  
+                    if (parentVox[3] > 0 && palette.getElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0, parentVox[2])[3] > 0) {
+                        offset -= 0.1;
                     }
-                    else {
-                        //delete voxel
-                        if (parentVox[3] <= 0 || palette.getElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0, parentVox[2])[3] <= 0) {
-                            offset += 0.1;
-                        }
-                        else {
-                            break;
-                        }
-                    }
+                    else
+                        break;
                 }
                 else {
-                    break;
+                    //adjust position for voxel deletion  
+                    if (parentVox[3] <= 0 || palette.getElement(cursor3D[0] % 8, cursor3D[1] % 8, cursor3D[2] % 8, parentVox[0], 0, parentVox[2])[3] <= 0) {
+                        offset += 0.1;
+                    }
+                    else {
+                        break;
+                    }
                 }
             }
             if (parentVox[3] > 0) {
@@ -408,45 +448,47 @@ function drawScene(renderParams, time) {
                 let pick = -1;
                 //try moving cursor up to 8 times
                 for (let it = 0; it < 8; it++) {
-                    cursor3D[0] = Math.round((pos[0] + 1.5 * size + direction[0] * (pixel[3] / 2.0 + offset)) - 0.5);
-                    cursor3D[1] = Math.round((pos[1] + direction[1] * (pixel[3] / 2.0 + offset)) - 0.5);
-                    cursor3D[2] = Math.round((pos[2] + 1.5 * size + direction[2] * (pixel[3] / 2.0 + offset)) - 0.5);
+                    let rayLength = pixel[3] / 2.0 + offset;
+                    let chunkOffset = renderParams.mapManager.chunkOffset;
+                    cursor3D[0] = Math.round((pos[0] + (chunkOffset[0] + 0.5) * size + direction[0] * rayLength) - 0.5);
+                    cursor3D[1] = Math.round((pos[1] + direction[1] * rayLength) - 0.5);
+                    cursor3D[2] = Math.round((pos[2] + (chunkOffset[2] + 0.5) * size + direction[2] * rayLength) - 0.5);
 
                     const cx = Math.floor(cursor3D[0] / size);
                     const cz = Math.floor(cursor3D[2] / size);
-                    if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
-                        let chunkid = (cx + renderParams.mapManager.chunkOffset[0] + 2) % 3 + ((cz + renderParams.mapManager.chunkOffset[2] + 2) % 3) * 3;
-                        if (paint == 1 || paint == 3 || paint == 4) {
-                            //place voxel
-                            if (renderParams.mapManager.visibleChunks[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] > 0) {
-                                offset -= 0.1;
-                            }
-                            else
-                                break;
-                        }
-                        else {
-                            //delete voxel
-                            if (paint == 5) {
-                                let element = renderParams.mapManager.visibleChunks[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size);
-                                pick = element[0];
-                                pickVariant = element[2];
-                            }
+                    let chunkKey = [cx, 0, cz].join(",");
+                    let chunk = renderParams.mapManager.chunkMap.get(chunkKey);
+                    if (chunk == undefined) {
+                        break;
+                    }
 
-                            if (renderParams.mapManager.visibleChunks[chunkid].getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] <= 0) {
-                                offset += 0.1;
-                            }
-                            else {
-                                break;
-                            }
+                    if (paint == 1 || paint == 3 || paint == 4) {
+                        //adjust position for voxel placement                     
+                        if (chunk.getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] > 0) {
+                            offset -= 0.1;
                         }
+                        else
+                            break;
                     }
                     else {
-                        break;
+                        //adjust position for voxel deletion   
+                        if (paint == 5) {
+                            let element = chunk.getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size);
+                            pick = element[0];
+                            pickVariant = element[2];
+                        }
+
+                        if (chunk.getElement(cursor3D[0] % size, cursor3D[1] % size, cursor3D[2] % size, 0, size)[3] <= 0) {
+                            offset += 0.1;
+                        }
+                        else {
+                            break;
+                        }
                     }
                 }
 
-                //pick color
                 if (paint == 5) {
+                    //pick color
                     if (pick >= 0) {
                         brush.palette_id = pick;
                         brush.variant = pickVariant;
@@ -468,20 +510,22 @@ function drawScene(renderParams, time) {
                             for (let x = xstart; x <= Math.max(fill[0], cursor3D[0]); x++) {
                                 for (let y = ystart; y <= Math.max(fill[1], cursor3D[1]); y++) {
                                     for (let z = zstart; z <= Math.max(fill[2], cursor3D[2]); z++) {
-                                        if (x < 3 * size && z < 3 * size && y < size && x >= 0 && z >= 0 && y >= 0) {
-                                            let chunkid = Math.floor((x + (renderParams.mapManager.chunkOffset[0] + 2) * size) / size) % 3 + Math.floor(((z + (renderParams.mapManager.chunkOffset[2] + 2) * size) / size) % 3) * 3;
-                                            if (paint == 3)
-                                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 255);
-                                            else
-                                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 0);
-                                            chunks2send.set(chunkid, 1);
+                                        if (y < size && y >= 0) {
+                                            const cx = Math.floor(x / size);
+                                            const cz = Math.floor(z / size);
+                                            let chunkKey = [cx, 0, cz].join(",");
+                                            let chunk = renderParams.mapManager.chunkMap.get(chunkKey);
+                                            if (chunk != undefined) {
+                                                if (paint == 3)
+                                                    chunk.octreeSet(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 255);
+                                                else
+                                                    chunk.octreeSet(Math.floor(x) % size, Math.floor(y) % size, Math.floor(z) % size, brush.palette_id, 255, brush.variant, 0);
+                                                chunks2send.set(chunk, 1);
+                                            }
                                         }
                                     }
                                 }
                             }
-                            chunks2send.forEach((val, chunk) => {
-                                renderParams.mapManager.sendChunk(chunk, 0, 0, 0, size - 1, size - 1, size - 1); console.log(chunk)
-                            });
 
                             fill = vec3_minus_one;
                             paint = 0;
@@ -495,58 +539,35 @@ function drawScene(renderParams, time) {
                         fill = vec3_minus_one;
 
                     if (paint > 0) {
-                        let r = brush.diameter / 2.0;
-                        if (brush.diameter > 4) {
-                            for (let x = -r; x < r; x++) {
-                                for (let y = -r; y < r; y++) {
-                                    for (let z = -r; z < r; z++) {
-                                        if (cursor3D[0] + x < 3 * size && cursor3D[2] + z < 3 * size && cursor3D[1] + y < size && cursor3D[0] + x >= 0 && cursor3D[2] + z >= 0 && cursor3D[1] + y >= 0) {
-                                            if (brush.type || (x * x + y * y + z * z < (r - 1.0) * (r - 1.0))) {
-                                                let chunkid = Math.floor((cursor3D[0] + x + (renderParams.mapManager.chunkOffset[0] + 2) * size) / size) % 3 + Math.floor(((cursor3D[2] + z + (renderParams.mapManager.chunkOffset[2] + 2) * size) / size) % 3) * 3;
-                                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
-                                                chunks2send.set(chunkid, 1);
+                        let r = Math.floor(brush.diameter / 2.0);
+                        for (let x = -r; x <= r; x++) {
+                            for (let y = -r; y <= r; y++) {
+                                for (let z = -r; z <= r; z++) {
+                                    if (cursor3D[1] + y < size && cursor3D[1] + y >= 0) {
+                                        if (brush.type || (x * x + y * y + z * z <= r * r)) {
+                                            const cx = Math.floor((cursor3D[0] + x) / size);
+                                            const cy = 0;
+                                            const cz = Math.floor((cursor3D[2] + z) / size);
+                                            let chunkKey = [cx, cy, cz].join(",");
+                                            let chunk = renderParams.mapManager.chunkMap.get(chunkKey);
+                                            if (chunk != undefined) {
+                                                chunk.octreeSet(Math.floor(cursor3D[0] + x) % size, Math.floor(cursor3D[1] + y) % size, Math.floor(cursor3D[2] + z) % size, brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
+                                                chunks2send.set(chunk, 1);
                                             }
                                         }
                                     }
                                 }
                             }
-                            chunks2send.forEach((val, chunk) => {
-                                renderParams.mapManager.sendChunk(chunk, 0, 0, 0, size - 1, size - 1, size - 1); console.log(chunk)
-                            });
-                        }
-                        else {
-                            const cx = Math.floor(cursor3D[0] / size);
-                            //const cy = Math.floor(cursor3D[1] / 64);
-                            const cz = Math.floor(cursor3D[2] / size);
-                            if (cx < 3 && cz < 3 && cx >= 0 && cz >= 0) {
-                                cursor3D[0] %= size;
-                                cursor3D[1] %= size;
-                                cursor3D[2] %= size;
-                                let chunkid = (cx + renderParams.mapManager.chunkOffset[0] + 2) % 3 + ((cz + renderParams.mapManager.chunkOffset[2] + 2) % 3) * 3;
-                                renderParams.mapManager.visibleChunks[chunkid].octreeSet(cursor3D[0], cursor3D[1], cursor3D[2], brush.palette_id, 255, brush.variant, (paint == 1) ? 255 : 0);
-                                renderParams.mapManager.sendChunk(chunkid, 0, 0, 0, size - 1, size - 1, size - 1);
-                            }
                         }
                     }
+
+                    chunks2send.forEach((val, chunk) => {
+                        renderParams.mapManager.sendChunk(chunk, 0, 0, 0, size - 1, size - 1, size - 1);
+                    });
                 }
             }
         }
         paint = 0;
     }
-
-    window.requestAnimationFrame(function (timestamp) {
-        deltaTime = timestamp - time;
-
-        if (wait > 10) {
-            document.getElementById('fps_counter').innerHTML = (Math.round(10000.0 / fps_time) + "FPS");
-            fps_time = 0;
-            wait = 0;
-        }
-        else
-            fps_time += deltaTime;
-
-        wait++;
-        drawScene(renderParams, timestamp);
-    });
 }
 

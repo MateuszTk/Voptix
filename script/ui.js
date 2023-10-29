@@ -240,6 +240,9 @@ outputRo.innerHTML = ro;
 outputP.innerHTML = p;
 outputV.innerHTML = v;
 
+document.getElementById('viewDistance').value = mapSize;
+document.getElementById('viewDistanceText').innerText = mapSize;
+
 gora.style.opacity = c / 255;
 gora.style.filter = "blur(" + ro / 50 + "px)";
 previewMask.style.backgroundColor = ["rgb(", r, ",", g, ",", b, ")"].join("");

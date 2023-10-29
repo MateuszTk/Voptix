@@ -122,13 +122,13 @@ function start() {
 //x, y, z are chunk position
 //size is the size of the chunk
 //chunk_index is a number which should be passed to "octree_set" function
-function chunkFunction(x, y, z, size, chunk_index, mapManager) {
+function chunkFunction(x, y, z, size, chunk, worldParameter) {
     if (worldParameter == "empty") {
         for (let _x = 0; _x < size; _x++) {
             for (let _z = 0; _z < size; _z++) {
                 for (let _y = 0; _y < size; _y++) {
                     if (_y < 10) {
-                        pixels[chunk_index].octreeSet(_x, _y, _z, 6, 255, 0, 255);
+                        chunk.octreeSet(_x, _y, _z, 6, 255, 0, 255);
                     }
                 }
             }
@@ -163,10 +163,10 @@ function chunkFunction(x, y, z, size, chunk_index, mapManager) {
                             }
 
                             if (clp > 0)
-                                mapManager.visibleChunks[chunk_index].octreeSet(_x, _y, _z, r, 255, 0, 255);
+                                chunk.octreeSet(_x, _y, _z, r, 255, 0, 255);
                             else if (_y < 1) {
                                 r = 0;
-                                mapManager.visibleChunks[chunk_index].octreeSet(_x, _y, _z, 3, 255, 0, 255);
+                                chunk.octreeSet(_x, _y, _z, 3, 255, 0, 255);
                             }
 
                         }
@@ -175,4 +175,8 @@ function chunkFunction(x, y, z, size, chunk_index, mapManager) {
             }
         }
     }
+}
+
+function clamp(num, min, max) {
+    return ((num <= min) ? min : ((num >= max) ? max : num));
 }
