@@ -169,7 +169,6 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     //scene buffer
     const sceneBuffer = new UniformBuffer(gl, 4 * 13 + 4, 0);
     const block = gl.getUniformBlockIndex(shaderProgram.program, "Scene");
-    console.log(block);
     gl.uniformBlockBinding(shaderProgram.program, block, sceneBuffer.boundLocation);
 
     //----shader program for post-processing and 1st pass----//
@@ -297,6 +296,7 @@ setInterval(function () {
 
 function drawScene(renderParams, time) {
     updateCamera(renderParams.mapManager);
+    renderParams.mapManager.update();
 
     const scene = [
         (pos[0] + renderParams.mapManager.chunkEdgeCount / 2 * size) * subSize, (pos[1]) * subSize, (pos[2] + renderParams.mapManager.chunkEdgeCount / 2 * size) * subSize, 0,

@@ -122,7 +122,7 @@ function start() {
 //x, y, z are chunk position
 //size is the size of the chunk
 //chunk_index is a number which should be passed to "octree_set" function
-function chunkFunction(x, y, z, size, chunk) {
+function chunkFunction(x, y, z, size, chunk, worldParameter) {
     if (worldParameter == "empty") {
         for (let _x = 0; _x < size; _x++) {
             for (let _z = 0; _z < size; _z++) {
@@ -175,4 +175,8 @@ function chunkFunction(x, y, z, size, chunk) {
             }
         }
     }
+}
+
+function clamp(num, min, max) {
+    return ((num <= min) ? min : ((num >= max) ? max : num));
 }
