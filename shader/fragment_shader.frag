@@ -23,8 +23,7 @@ struct Ray {
 out vec4[3] outColor;
 uniform sampler3D megaChunkTexture;
 uniform sampler3D paletteTexture;
-uniform sampler2D light_high;
-uniform sampler2D light_low;
+uniform sampler2D prevLight;
 uniform ivec3[chunk_edge_count * chunk_edge_count] chunk_map;
 uniform Scene{
 	vec4 camera_origin;
@@ -315,7 +314,7 @@ void main() {
 	if (hit) {
 		if (primMat.y > 0.0f) { 
 			//if hit light source make sure the clamped multiplier is 1.0
-			illumination = vec3(64.0f);
+			illumination = vec3(2.0f);
 		}
 
 		//shadow for primary ray
@@ -325,7 +324,7 @@ void main() {
 		vec4 shadowColor, shadowMat;
 		vec3 shadow_box_pos;
 		vec3 shadowNormals;
-		if(octree_get_pixel(ray, far, shadowColor, shadowMat, shadow_box_pos, shadowNormals)) illumination *= 0.1f;
+		if(primMat.y <= 0.1f && octree_get_pixel(ray, far, shadowColor, shadowMat, shadow_box_pos, shadowNormals)) illumination *= 0.1f;
 
 		//GI ray
 		for(int GIsample = 0; GIsample < gi_samples; GIsample++){
@@ -384,11 +383,11 @@ void main() {
 				}
 				else{
 					//mate reflection (goes to the denoiser together with illumination)
-					illumination.xyz = mix(pixel_color.xyz, reflColor.xyz, intensity) * clamp(illumination.xyz, vec3(0.0f), vec3(1.0f)) * float(max(gi_samples, 1));
+					illumination.xyz = mix(pixel_color.xyz, reflColor.xyz, intensity) * illumination.xyz * float(max(gi_samples, 1));
 				}
 				if (reflMat.y > 0.0f) { 
 					//if hit light source make sure the clamped multiplier is 1.0
-					illumination = vec3(64.0f);
+					illumination = vec3(2.0f);
 				}
 				if(!_hit) break;
 				reflHit = primary_ray.orig + primary_ray.dir * (reflColor.w - ray_retreat);
@@ -404,12 +403,8 @@ void main() {
 	}
 	else{
 		//if hit sky prevent it from being dimmed
-		illumination = vec3(64.0f);
+		illumination = vec3(1.0f);
 	}
-	
-	float w = pixel_color.w;
-	pixel_color = clamp(pixel_color, 0.0f, 1.0f);
-	pixel_color.w = clamp(w / 255.0f * 2.0f, 0.0f, 255.0f);
 
 	//restore lighting from previous frame
 	vec3 direction = primary_hit - scene.prev_pos.xyz;
@@ -435,27 +430,30 @@ void main() {
 		((direction.x / direction.z) * ar / fov + 1.0f) * 0.5f,
 		((direction.y / direction.z) / fov + 1.0f) * 0.5f);
 
-	//pixel = pos / scene.screen.xy;
-	//direction.yz *= -1.0f;
-	vec4 acc_ill = vec4(-1);
+
 	vec4 light = vec4(0.0f);
 	illumination /= float(max(gi_samples, 1));
 	if (pixel.x > 0.0f && pixel.y > 0.0f && pixel.y < 1.0f && pixel.x < 1.0) {
-		vec4 lightData = (texture(light_high, pixel) * vec4(1.0f / 256.0f, 1.0f / 256.0f,1.0f / 256.0f, 256.0f) + texture(light_low, pixel));
-		if (distance(scene.prev_pos.xyz + ray_dir * (lightData.w * 255.0f / 2.0f), primary_hit) < 0.6f) {
-			acc_ill = lightData;
+		vec4 lightData = texture(prevLight, pixel);
+		float maxDistanceTreshold = clamp(pixel_color.w / 128.0, 0.1, 10.0);
+		if (distance(scene.prev_pos.xyz + ray_dir * lightData.w, primary_hit) < maxDistanceTreshold) {
+			vec4 acc_ill = lightData;
 			light = (acc_ill * 20.0f + vec4(illumination.xyz, 0.0f)) / 21.0f;
 		}
 		else {
 			//pixel_color.r = 1.0f;
-			light.xyz = illumination;
+			light.xyz = min(illumination, 1.0);
 		}
 	}
 	else {
 		//pixel_color.r = 1.0f;
-		light.xyz = illumination;
+		light.xyz = min(illumination, 1.0);
 	}
 	
+
+	float wDist = pixel_color.w;
+	pixel_color = clamp(pixel_color, 0.0f, 1.0f);
+	pixel_color.w = clamp(wDist / 255.0f * 2.0f, 0.0f, 255.0f);
 
 	//color output
 #ifdef DEBUG
@@ -468,12 +466,10 @@ void main() {
 	//normals, least significant bit corresponds to the material properties
 	vec3 normal = primaryNormals * gradient * vec3(2, 2, 1) + vec3(primMat.x > 0.0f, primMat.y > 0.0f, 0);
 
-	//ligting data output	
-	light.w = pixel_color.w;
-	//low
-	outColor[1].xyz = light.xyz;
-	outColor[1].w = float(int(light.w * 255.0f) % 256) / 255.0f;
-	//high
-	outColor[2].xyz = normal;
-	outColor[2].w = float(int(light.w * 255.0f) / 256) / 255.0f;
+	outColor[1].xyz = normal;
+	outColor[1].w = 0.0f;
+
+	//ligting data output + depth
+	light.w = wDist;
+	outColor[2] = light;
 }

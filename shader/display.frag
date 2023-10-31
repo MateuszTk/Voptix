@@ -34,6 +34,9 @@ void main() {
         }
     }
 
+    //gamma correction
+    //light = pow(light, vec4(1.0f / 2.2f));
+
     //average light from neighbors and this pixel
     light = (light + low_light) / cnt;
 

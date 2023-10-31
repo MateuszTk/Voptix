@@ -47,6 +47,12 @@ function main() {
         return;
     }
 
+    const ext = gl.getExtension("EXT_color_buffer_float");
+    if (!ext) {
+        alert("Need EXT_color_buffer_float");
+        return;
+    }
+
     let savedMapSize = localStorage.getItem("mapSize");
     if (savedMapSize) {
         mapSize = parseInt(savedMapSize);
@@ -167,7 +173,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     let chunkOffset = glMatrix.vec3.fromValues(20, 0, 20);
     mapManager = new MapManager(chunkOffset, gl, shaderProgram, octree_depth, 'chunk_map', mapSize);
 
-    palette = new Palette(pal_size, pal_pix_cnt, pal_variants, subOctreeDepth, shaderProgram, 3);
+    palette = new Palette(pal_size, pal_pix_cnt, pal_variants, subOctreeDepth, shaderProgram, 1);
 
     // Get the attribute location
     var coord = gl.getAttribLocation(shaderProgram.program, "coordinates");
@@ -179,7 +185,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     gl.enableVertexAttribArray(coord);
 
 
-    let mainFb = new Framebuffer(gl, canvas.width, canvas.height, 3);
+    let mainFb = new Framebuffer(gl, canvas.width, canvas.height, 3, ['ubyte', 'ubyte', 'float']);
 
     //scene buffer
     const sceneBuffer = new UniformBuffer(gl, 4 * 13 + 4, 0);
@@ -190,30 +196,29 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
     const canvasShaderProgram = new ShaderProgram(gl, vsSource, pp_fragment);
     initBuffers(gl);
     let canvasMat = new Material(gl, canvasShaderProgram);
-    canvasMat.addTexture("color0", mainFb.textures[1]);
-    canvasMat.addTexture("color1", mainFb.textures[2]);
+    canvasMat.addTexture("color1", mainFb.textures[1]);
+    canvasMat.addTexture("light", mainFb.textures[2]);
     canvasMat.addVec2f("screen_size", canvas.width, canvas.height);
 
     //bind otuput for pp and last frame
-    let postpFb = new Framebuffer(gl, canvas.width, canvas.height, 2);
+    let postpFb = new Framebuffer(gl, canvas.width, canvas.height, 1, ['float']);
 
     // ----feedback loop----
     shaderProgram.use();
 
-    let mainMat = new Material(gl, shaderProgram, 1);
-    mainMat.addTexture("light_high", postpFb.textures[0]);
-    mainMat.addTexture("light_low", postpFb.textures[1]);
+    let mainMat = new Material(gl, shaderProgram, 2);
+    mainMat.addTexture("prevLight", postpFb.textures[0]);
 
     //----shader program for 2nd pass----//
     const denoiserShaderProgram = new ShaderProgram(gl, vsSource, denoiser_fragment);
     initBuffers(gl);
     let denMat = new Material(gl, denoiserShaderProgram);
-    denMat.addTexture("color1", mainFb.textures[2]);
-    denMat.addTexture("color2", postpFb.textures[1]);
+    denMat.addTexture("color1", mainFb.textures[1]);
+    denMat.addTexture("color2", postpFb.textures[0]);
     denMat.addVec2f("screen_size", canvas.width, canvas.height);
 
     //output
-    let denFb = new Framebuffer(gl, canvas.width, canvas.height, 1);
+    let denFb = new Framebuffer(gl, canvas.width, canvas.height, 1, ['float']);
 
     //----shader program for display and 3rd pass----//
     const dispShaderProgram = new ShaderProgram(gl, vsSource, disp_fragment);
@@ -221,7 +226,7 @@ function init(vsSource, fsSource, gl, canvas, pp_fragment, disp_fragment, denois
 
     let dispMat = new Material(gl, dispShaderProgram);
     dispMat.addTexture("color0", mainFb.textures[0]);
-    dispMat.addTexture("color1", mainFb.textures[2]);
+    dispMat.addTexture("color1", mainFb.textures[1]);
     dispMat.addTexture("color2", denFb.textures[0]);
     dispMat.addVec2f("screen_size", canvas.width, canvas.height);
 

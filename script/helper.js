@@ -39,8 +39,9 @@ class Texture {
     #texture
     #width
     #height
+    #useFloat
 
-    constructor(gl, width, height, image = null) {
+    constructor(gl, width, height, useFloat = false, image = null) {
         this.#gl = gl;
         this.#width = width;
         this.#height = height;
@@ -55,7 +56,9 @@ class Texture {
         this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAG_FILTER, this.#gl.LINEAR);
 
         // Upload the image into the texture.
-        this.#gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.#width, this.#height, 0, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        const type = (useFloat) ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
+        const internalFormat = (useFloat) ? gl.RGBA16F : gl.RGBA;
+        this.#gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, this.#width, this.#height, 0, gl.RGBA, type, image);
 
         this.#gl.bindTexture(this.#gl.TEXTURE_2D, null);
     }
@@ -163,7 +166,7 @@ class Framebuffer {
     #width
     #height
 
-    constructor(gl, width, height, textureCnt) {
+    constructor(gl, width, height, textureCnt, typeArray = []) {
         this.#gl = gl;
         this.#width = width;
         this.#height = height;
@@ -174,7 +177,8 @@ class Framebuffer {
         this.#textures = [];
         let attachments = [];
         for (let i = 0; i < textureCnt; i++) {
-            const texture = new Texture(this.#gl, width, height);
+            let useFloat = (typeArray.length == textureCnt) ? (typeArray[i] == "float") : false;
+            const texture = new Texture(this.#gl, width, height, useFloat);
             texture.bind();
             this.#gl.framebufferTexture2D(this.#gl.FRAMEBUFFER, this.#gl.COLOR_ATTACHMENT0 + i, this.#gl.TEXTURE_2D, texture.texture, 0);
             attachments.push(this.#gl.COLOR_ATTACHMENT0 + i);
