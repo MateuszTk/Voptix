@@ -34,11 +34,15 @@ void main() {
         }
     }
 
-    //gamma correction
-    //light = pow(light, vec4(1.0f / 2.2f));
-
     //average light from neighbors and this pixel
     light = (light + low_light) / cnt;
+
+    // tone mapping
+    //float exposure = 1.8f;
+    //light.xyz = vec3(1.0) - exp(-light.xyz * exposure);
+
+    //gamma correction
+    //light = pow(light, vec4(1.0f / 2.2f));
 
     vec4 prim = texture(color0, pixelPos);
     vec4 outColorPrep = clamp(prim * light, 0.0f, 1.0f);

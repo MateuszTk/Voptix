@@ -314,7 +314,7 @@ void main() {
 	if (hit) {
 		if (primMat.y > 0.0f) { 
 			//if hit light source make sure the clamped multiplier is 1.0
-			illumination = vec3(2.0f);
+			illumination = vec3(2.0f * float(max(gi_samples, 1)));
 		}
 
 		//shadow for primary ray
@@ -324,7 +324,7 @@ void main() {
 		vec4 shadowColor, shadowMat;
 		vec3 shadow_box_pos;
 		vec3 shadowNormals;
-		if(primMat.y <= 0.1f && octree_get_pixel(ray, far, shadowColor, shadowMat, shadow_box_pos, shadowNormals)) illumination *= 0.1f;
+		if(primMat.y <= 0.1f && octree_get_pixel(ray, far, shadowColor, shadowMat, shadow_box_pos, shadowNormals)) illumination *= 0.005f;
 
 		//GI ray
 		for(int GIsample = 0; GIsample < gi_samples; GIsample++){
@@ -340,7 +340,7 @@ void main() {
 			vec3 normals;
 			if (octree_get_pixel(ray, far / 8.0f, giColor, giMat, gi_box_pos, normals)) {
 				//add light from hit voxel
-				illumination += vec3(giMat.y) * giColor.xyz * 12.0f;
+				illumination += vec3(giMat.y) * giColor.xyz * 18.0f;
 
 				ray.orig = ray.orig + ray.dir * (giColor.w - ray_retreat);
 				vec3 jitter = (hash3(seed) * 2.0f - 1.0f) * scene.sunParam.z;
@@ -349,7 +349,7 @@ void main() {
 				vec3 shadow_box_pos;
 				vec3 shadowNormals;
 				if(!octree_get_pixel(ray, far, shadowColor, shadowMat, shadow_box_pos, shadowNormals)) {
-					illumination += giColor.xyz * 1.5f;
+					illumination += giColor.xyz * 2.0f;
 				}
 			}
 			else{
@@ -383,11 +383,11 @@ void main() {
 				}
 				else{
 					//mate reflection (goes to the denoiser together with illumination)
-					illumination.xyz = mix(pixel_color.xyz, reflColor.xyz, intensity) * illumination.xyz * float(max(gi_samples, 1));
+					illumination.xyz = pow(mix(pixel_color.xyz, reflColor.xyz, intensity), vec3(2.2)) * clamp(illumination.xyz, 0.0, 1.0) * float(max(gi_samples, 1));
 				}
 				if (reflMat.y > 0.0f) { 
 					//if hit light source make sure the clamped multiplier is 1.0
-					illumination = vec3(2.0f);
+					illumination = vec3(2.0f * float(max(gi_samples, 1)));
 				}
 				if(!_hit) break;
 				reflHit = primary_ray.orig + primary_ray.dir * (reflColor.w - ray_retreat);
@@ -403,7 +403,7 @@ void main() {
 	}
 	else{
 		//if hit sky prevent it from being dimmed
-		illumination = vec3(1.0f);
+		illumination = vec3(1.0f * float(max(gi_samples, 1)));
 	}
 
 	//restore lighting from previous frame
@@ -433,6 +433,10 @@ void main() {
 
 	vec4 light = vec4(0.0f);
 	illumination /= float(max(gi_samples, 1));
+
+	// gamma correction
+	illumination.xyz = pow(illumination.xyz, vec3(1.0f / 2.2f));
+
 	if (pixel.x > 0.0f && pixel.y > 0.0f && pixel.y < 1.0f && pixel.x < 1.0) {
 		vec4 lightData = texture(prevLight, pixel);
 		float maxDistanceTreshold = clamp(pixel_color.w / 128.0, 0.1, 10.0);
