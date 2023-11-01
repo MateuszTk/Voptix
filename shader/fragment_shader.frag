@@ -314,7 +314,7 @@ void main() {
 	if (hit) {
 		if (primMat.y > 0.0f) { 
 			//if hit light source make sure the clamped multiplier is 1.0
-			illumination = vec3(2.0f * float(max(gi_samples, 1)));
+			illumination = vec3(1.0f * float(max(gi_samples, 1)));
 		}
 
 		//shadow for primary ray
