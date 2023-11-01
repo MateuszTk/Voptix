@@ -433,16 +433,12 @@ void main() {
 
 	vec4 light = vec4(0.0f);
 	illumination /= float(max(gi_samples, 1));
-
-	// gamma correction
-	illumination.xyz = pow(illumination.xyz, vec3(1.0f / 2.2f));
-
 	if (pixel.x > 0.0f && pixel.y > 0.0f && pixel.y < 1.0f && pixel.x < 1.0) {
 		vec4 lightData = texture(prevLight, pixel);
 		float maxDistanceTreshold = clamp(pixel_color.w / 128.0, 0.1, 10.0);
 		if (distance(scene.prev_pos.xyz + ray_dir * lightData.w, primary_hit) < maxDistanceTreshold) {
 			vec4 acc_ill = lightData;
-			light = (acc_ill * 20.0f + vec4(illumination.xyz, 0.0f)) / 21.0f;
+			light = (acc_ill * 40.0f + vec4(illumination.xyz, 0.0f)) / 41.0f;
 		}
 		else {
 			//pixel_color.r = 1.0f;

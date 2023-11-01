@@ -42,7 +42,7 @@ void main() {
     //light.xyz = vec3(1.0) - exp(-light.xyz * exposure);
 
     //gamma correction
-    //light = pow(light, vec4(1.0f / 2.2f));
+    light = pow(light, vec4(1.0f / 2.2f));
 
     vec4 prim = texture(color0, pixelPos);
     vec4 outColorPrep = clamp(prim * light, 0.0f, 1.0f);
