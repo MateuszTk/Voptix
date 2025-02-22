@@ -14,4 +14,4 @@ https://mateusztk.github.io/Voptix/
 - [x] Editable world
 - [x] Chunk system
 
-![Renderella](https://github.com/MateuszTk/Voptix/readme/sample.jpg?raw=true)
+![Renderella](https://github.com/MateuszTk/Voptix/blob/main/readme/sample.jpg?raw=true)
